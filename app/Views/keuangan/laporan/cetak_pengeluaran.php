@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Cetak Laporan Pengeluaran</title>
+    <style>
+        body { font-family: 'Times New Roman', Times, serif; font-size: 11pt; margin: 0; padding: 20px; color: #000; }
+        
+        .header { text-align: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h1 { margin: 0; font-size: 16pt; font-weight: bold; text-transform: uppercase; }
+        .header p { margin: 2px 0; font-size: 10pt; }
+        
+        .title { text-align: center; font-weight: bold; text-decoration: underline; font-size: 14pt; margin-bottom: 15px; text-transform: uppercase; }
+        
+        .info { margin-bottom: 15px; width: 100%; }
+        .info td { vertical-align: top; padding: 2px; }
+
+        table.data { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt; }
+        table.data th, table.data td { border: 1px solid #000; padding: 5px 8px; }
+        table.data th { background-color: #f0f0f0; text-align: center; font-weight: bold; }
+        
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: bold; }
+        
+        .footer { margin-top: 30px; width: 100%; page-break-inside: avoid; }
+        .sign-box { width: 30%; float: right; text-align: center; }
+        .sign-space { height: 70px; }
+
+        .no-print { margin-bottom: 20px; text-align: right; background: #fff7ed; padding: 10px; border: 1px solid #fdba74; }
+        .btn { background: #f59e0b; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-close { background: #64748b; margin-left: 5px; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            .no-print { display: none; }
+            body { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print">
+        <button class="btn" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+        <button class="btn btn-close" onclick="window.close()">Tutup</button>
+    </div>
+
+    <!-- KOP SURAT -->
+    <div class="header">
+        <h1><?= esc($instansi['nama'] ?? 'YAYASAN PENDIDIKAN GENERASI JUARA') ?></h1>
+        <p><?= esc($instansi['alamat'] ?? 'Alamat Sekolah Belum Diatur') ?></p>
+        <p><i><?= esc($instansi['kontak'] ?? '') ?></i></p>
+    </div>
+
+    <div class="title">LAPORAN REALISASI PENGELUARAN</div>
+
+    <table class="info">
+        <tr>
+            <td width="15%"><strong>Unit Kerja</strong></td>
+            <td width="2%">:</td>
+            <td><?= esc($jenjang_label ?? 'SEMUA UNIT') ?></td>
+            <td width="15%"><strong>Dicetak Oleh</strong></td>
+            <td width="2%">:</td>
+            <td><?= esc($user_pencetak ?? 'Admin') ?></td>
+        </tr>
+        <tr>
+            <td><strong>Periode</strong></td>
+            <td>:</td>
+            <td><?= date('d F Y', strtotime($start_date)) ?> s/d <?= date('d F Y', strtotime($end_date)) ?></td>
+            <td><strong>Tanggal Cetak</strong></td>
+            <td>:</td>
+            <td><?= date('d F Y H:i') ?></td>
+        </tr>
+    </table>
+
+    <!-- Logic: Cek apakah laporan Agregat (Semua Unit) -->
+    <?php 
+        $isAgregat = (strpos(($jenjang_label ?? ''), 'AGREGAT') !== false || strpos(($jenjang_label ?? ''), 'SEMUA') !== false);
+        $colSpanTotal = $isAgregat ? 6 : 5; // Penyesuaian colspan footer
+    ?>
+
+    <!-- TABEL DATA -->
+    <table class="data">
+        <thead>
+            <tr>
+                <th width="5%">No</th>
+                <th width="12%">Tanggal</th>
+                <?php if($isAgregat): ?>
+                <th width="8%">Unit</th>
+                <?php endif; ?>
+                <th width="20%">Kategori Akun</th>
+                <th width="30%">Uraian Pengeluaran</th>
+                <th width="10%">Pihak Terkait</th>
+                <th width="15%">Nominal (Rp)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php 
+            $grandTotal = 0;
+            if(empty($laporan)): 
+            ?>
+                <tr><td colspan="<?= $isAgregat ? 7 : 6 ?>" class="text-center" style="padding: 20px;">Tidak ada data pengeluaran.</td></tr>
+            <?php else: ?>
+                <?php $no = 1; foreach($laporan as $row): 
+                    $grandTotal += $row['nominal']; // Asumsi field database 'jumlah' alias nominal
+                ?>
+                <tr>
+                    <td class="text-center"><?= $no++ ?></td>
+                    <td class="text-center"><?= date('d/m/Y', strtotime($row['tanggal'])) ?></td>
+                    <?php if($isAgregat): ?>
+                    <td class="text-center"><?= esc($row['kode_jenjang']) ?></td>
+                    <?php endif; ?>
+                    <td>
+                        <?= esc($row['nama_kategori'] ?? 'Umum') ?><br>
+                        <small><i><?= esc($row['kode_kategori'] ?? '') ?></i></small>
+                    </td>
+                    <td><?= esc($row['keterangan'] ?? '-') ?></td>
+                    <td class="text-center"><?= esc($row['pihak'] ?? '-') ?></td>
+                    <td class="text-right"><?= number_format($row['nominal'], 0, ',', '.') ?></td>
+                </tr>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </tbody>
+        <tfoot>
+            <tr style="background-color: #fff7ed;">
+                <td colspan="<?= $colSpanTotal ?>" class="text-right font-bold">TOTAL PENGELUARAN</td>
+                <td class="text-right font-bold">Rp <?= number_format($grandTotal, 0, ',', '.') ?></td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- TANDA TANGAN -->
+    <div class="footer">
+        <div class="sign-box">
+            <p>Bekasi, <?= date('d F Y') ?></p>
+            <p>Disetujui Oleh,</p>
+            <div class="sign-space"></div>
+            <p><strong>( _______________________ )</strong></p>
+            <p>Kepala Sekolah / Yayasan</p>
+        </div>
+    </div>
+
+</body>
+</html>

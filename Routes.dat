@@ -1,0 +1,516 @@
+<?php
+
+use CodeIgniter\Router\RouteCollection;
+
+/**
+ * @var RouteCollection $routes
+ */
+
+// =================================================================
+// 1. HALAMAN PUBLIK (Landing Page, Berita, dll.)
+// =================================================================
+$routes->get('/', 'PublicController::index');
+$routes->get('berita/(:segment)', 'PublicController::beritaDetail/$1');
+
+// --- PENDAFTARAN SISWA BARU (PSB) PUBLIK ---
+$routes->group('psb', static function ($routes) {
+    $routes->get('daftar', 'PendaftaranController::index'); // Menampilkan form pendaftaran
+    $routes->post('daftar', 'PendaftaranController::simpan'); // Memproses pendaftaran
+    $routes->get('sukses', 'PendaftaranController::sukses'); // Halaman sukses
+});
+
+// =================================================================
+// 2. OTENTIKASI (Login/Logout Umum dan Admin)
+// =================================================================
+$routes->get('login', 'AuthController::index'); // Tampilkan form login Admin/Umum
+$routes->post('login', 'AuthController::login'); // Proses login Admin/Umum
+$routes->get('logout', 'AuthController::logout'); // Logout Admin/Umum
+
+// =================================================================
+// 3. PORTAL PENGGUNA (Login Khusus Berdasarkan Role)
+// =================================================================
+$routes->group('portal', static function ($routes) {
+    // Calon Siswa
+    $routes->get('calon-siswa/login', 'Portal\CalonSiswaController::login');
+    $routes->post('calon-siswa/login', 'Portal\CalonSiswaController::attemptLogin');
+    $routes->get('calon-siswa/dashboard', 'Portal\CalonSiswaController::dashboard', ['filter' => 'calon_siswa_auth']);
+    $routes->get('calon-siswa/logout', 'Portal\CalonSiswaController::logout');
+
+    // Afiliasi
+    $routes->get('afiliasi/login', 'Portal\AffiliateController::login');
+    $routes->post('afiliasi/login', 'Portal\AffiliateController::attemptLogin');
+    $routes->get('afiliasi/dashboard', 'Portal\AffiliateController::dashboard', ['filter' => 'affiliate_auth']);
+    $routes->get('afiliasi/logout', 'Portal\AffiliateController::logout');
+
+    // Guru
+    $routes->get('guru/login', 'Portal\GuruController::login');
+    $routes->post('guru/login', 'Portal\GuruController::attemptLogin');
+    $routes->get('guru/dashboard', 'Portal\GuruController::dashboard', ['filter' => 'guru_auth']);
+    $routes->get('guru/logout', 'Portal\GuruController::logout');
+
+    // Siswa
+    $routes->get('siswa/login', 'Portal\SiswaController::login');
+    $routes->post('siswa/login', 'Portal\SiswaController::attemptLogin');
+    $routes->get('siswa/dashboard', 'Portal\SiswaController::dashboard', ['filter' => 'siswa_auth']);
+    $routes->get('siswa/logout', 'Portal\SiswaController::logout');
+});
+
+// =================================================================
+// 4. AREA ADMIN - RUTE UTAMA (ROOT PATH / ) - FILTER 'auth'
+//    Digunakan untuk aksi CRUD/AJAX yang tidak perlu prefix '/app'.
+// =================================================================
+// Ini adalah rute utama untuk Controller Admin
+$routes->group('/', ['filter' => 'auth'], static function ($routes) {
+    // Rute utama (Dashboard Admin)
+    $routes->get('/', 'Home::index');
+
+    // --- KEPEGAWAIAN: Komponen Gaji CRUD (HANYA DI ROOT PATH) ---
+    // Aksi POST/PUT/DELETE diarahkan ke sini agar dapat diakses dari AJAX/Form yang tidak menggunakan /app
+    $routes->group('komponen-gaji', static function ($routes) {
+        $routes->get('/', 'KomponenGajiController::index');
+        $routes->get('new', 'KomponenGajiController::new');
+        $routes->post('/', 'KomponenGajiController::create'); // POST create
+        $routes->get('edit/(:num)', 'KomponenGajiController::edit/$1');
+        $routes->put('update/(:num)', 'KomponenGajiController::update/$1'); // PUT update (Membutuhkan Method Spoofing)
+        $routes->delete('delete/(:num)', 'KomponenGajiController::delete/$1'); // DELETE (Membutuhkan Method Spoofing)
+    });
+
+    // --- PENGGAJIAN: Aksi Penting yang dipanggil dari manapun (ROOT PATH) ---
+    $routes->post('penggajian/generate', 'PenggajianController::generate'); // Aksi Generate Gaji
+    $routes->post('penggajian/tambah-komponen/(:num)', 'PenggajianController::tambahKomponen/$1'); // Aksi POST
+    $routes->delete('penggajian/hapus-komponen/(:num)', 'PenggajianController::hapusKomponen/$1'); // Aksi DELETE
+    $routes->get('penggajian/cetakPdf/(:num)', 'PenggajianController::cetakPdf/$1'); // Aksi GET Cetak PDF
+});
+
+
+// =================================================================
+// 5. AREA ADMIN - RUTE DENGAN PREFIX '/app' - FILTER 'auth'
+//    Digunakan untuk Navigasi Menu / Konsistensi URL tampilan.
+// =================================================================
+$routes->group('app', ['filter' => 'auth'], static function ($routes) {
+    $routes->get('/', 'Home::index'); // Dashboard Admin (jika diakses via /app)
+
+    // ----------------------
+    // --- Master Data ---
+    // ----------------------
+    $routes->group('guru', static function ($routes) {
+        $routes->get('/', 'Guru::index');
+        $routes->get('new', 'Guru::new');
+        $routes->post('/', 'Guru::create');
+        $routes->get('edit/(:num)', 'Guru::edit/$1');
+        $routes->put('update/(:num)', 'Guru::update/$1');
+        $routes->delete('delete/(:num)', 'Guru::delete/$1');
+        $routes->get('(:num)', 'Guru::show/$1');
+    });
+
+    $routes->group('siswa', static function ($routes) {
+        $routes->get('/', 'Siswa::index');
+        $routes->get('new', 'Siswa::new');
+        $routes->post('/', 'Siswa::create');
+        $routes->get('edit/(:num)', 'Siswa::edit/$1');
+        $routes->put('update/(:num)', 'Siswa::update/$1');
+        $routes->delete('delete/(:num)', 'Siswa::delete/$1');
+        $routes->get('(:num)', 'Siswa::show/$1');
+    });
+
+    $routes->group('karyawan', static function ($routes) {
+        $routes->get('/', 'Karyawan::index');
+        $routes->get('new', 'Karyawan::new');
+        $routes->post('/', 'Karyawan::create');
+        $routes->get('edit/(:num)', 'Karyawan::edit/$1');
+        $routes->put('update/(:num)', 'Karyawan::update/$1');
+        $routes->delete('delete/(:num)', 'Karyawan::delete/$1');
+        $routes->get('(:num)', 'Karyawan::show/$1');
+    });
+
+    $routes->group('kelas', static function ($routes) {
+        $routes->get('/', 'Kelas::index');
+        $routes->get('new', 'Kelas::new');
+        $routes->post('/', 'Kelas::create');
+        $routes->get('edit/(:num)', 'Kelas::edit/$1');
+        $routes->put('update/(:num)', 'Kelas::update/$1');
+        $routes->delete('delete/(:num)', 'Kelas::delete/$1');
+        $routes->get('(:num)', 'Kelas::show/$1');
+    });
+
+    $routes->group('matapelajaran', static function ($routes) {
+        $routes->get('/', 'MataPelajaran::index');
+        $routes->get('new', 'MataPelajaran::new');
+        $routes->post('/', 'MataPelajaran::create');
+        $routes->get('edit/(:num)', 'MataPelajaran::edit/$1');
+        $routes->put('update/(:num)', 'MataPelajaran::update/$1');
+        $routes->delete('delete/(:num)', 'MataPelajaran::delete/$1');
+        $routes->get('(:num)', 'MataPelajaran::show/$1');
+    });
+
+    $routes->group('tahunajaran', static function ($routes) {
+        $routes->get('/', 'TahunAjaran::index');
+        $routes->get('new', 'TahunAjaran::new');
+        $routes->post('/', 'TahunAjaran::create');
+        $routes->get('edit/(:num)', 'TahunAjaran::edit/$1');
+        $routes->put('update/(:num)', 'TahunAjaran::update/$1');
+        $routes->delete('delete/(:num)', 'TahunAjaran::delete/$1');
+        $routes->get('(:num)', 'TahunAjaran::show/$1');
+    });
+
+    // ----------------------
+    // --- Kelembagaan ---
+    // ----------------------
+    $routes->group('kelembagaan', static function ($routes) {
+        $routes->get('/', 'Kelembagaan::index');
+        $routes->post('update', 'Kelembagaan::update');
+    });
+
+    // ----------------------
+    // --- Akademik ---
+    // ----------------------
+    $routes->get('kurikulum', 'Kurikulum::index');
+    $routes->get('kalenderpendidikan', 'KalenderPendidikan::index');
+
+    // Absensi Siswa
+    $routes->group('absensi', static function ($routes) {
+        $routes->get('/', 'Absensi::index');
+        $routes->match(['get', 'post'], 'kelola', 'Absensi::kelola');
+        $routes->post('simpan', 'Absensi::simpan');
+    });
+
+    // Nilai Siswa
+    $routes->group('nilai', static function ($routes) {
+        $routes->get('/', 'Nilai::index');
+        $routes->match(['get', 'post'], 'kelola', 'Nilai::kelola');
+        $routes->post('simpan', 'Nilai::simpan');
+    });
+
+    // Rapor
+    $routes->group('rapor', static function ($routes) {
+        $routes->get('/', 'Rapor::index');
+        $routes->get('view/(:num)', 'Rapor::view/$1');
+    });
+
+    // Ijazah
+    $routes->group('ijazah', static function ($routes) {
+        $routes->get('/', 'Ijazah::index');
+        $routes->post('simpan/(:num)', 'Ijazah::simpanNomor/$1');
+        $routes->get('view/(:num)', 'Ijazah::view/$1');
+    });
+
+    // Jadwal Pelajaran CRUD
+    $routes->group('jadwalpelajaran', static function ($routes) {
+        $routes->get('/', 'JadwalPelajaran::index');
+        $routes->get('new', 'JadwalPelajaran::new');
+        $routes->post('/', 'JadwalPelajaran::create');
+        $routes->get('edit/(:num)', 'JadwalPelajaran::edit/$1');
+        $routes->put('update/(:num)', 'JadwalPelajaran::update/$1');
+        $routes->delete('delete/(:num)', 'JadwalPelajaran::delete/$1');
+    });
+
+    // ----------------------
+    // --- Keuangan ---
+    // ----------------------
+    $routes->get('keuangan', 'Keuangan::index');
+
+    // Jenis Pembayaran CRUD
+    $routes->group('jenispembayaran', static function ($routes) {
+        $routes->get('/', 'JenisPembayaran::index');
+        $routes->get('new', 'JenisPembayaran::new');
+        $routes->post('/', 'JenisPembayaran::create');
+        $routes->get('edit/(:num)', 'JenisPembayaran::edit/$1');
+        $routes->put('update/(:num)', 'JenisPembayaran::update/$1');
+        $routes->delete('delete/(:num)', 'JenisPembayaran::delete/$1');
+    });
+
+    // Tagihan & Pembayaran
+    $routes->group('tagihan', static function ($routes) {
+        $routes->get('/', 'Tagihan::index');
+        $routes->get('new', 'Tagihan::new');
+        $routes->post('create', 'Tagihan::create');
+        $routes->get('bayar/(:num)', 'Tagihan::bayar/$1');
+        $routes->post('process_bayar/(:num)', 'Tagihan::processBayar/$1');
+    });
+
+    $routes->get('laporankeuangan', 'LaporanKeuangan::index');
+
+    // ----------------------
+    // --- PSB (Admin) ---
+    // ----------------------
+    $routes->group('psb', static function ($routes) {
+        $routes->get('/', 'Psb::index');
+        $routes->get('pendaftar', 'Psb::pendaftar');
+        $routes->post('update-status/(:num)', 'Psb::updateStatus/$1');
+        $routes->get('terima/(:num)', 'Psb::terimaSiswa/$1'); // Aksi terima siswa
+    });
+
+    // ----------------------
+    // --- Kesiswaan (Ekstrakurikuler, OSIS, Alumni, Laporan) ---
+    // ----------------------
+    $routes->get('kesiswaan', 'Kesiswaan::index'); // Dashboard Kesiswaan
+
+    // Ekskul (CRUD & Penilaian)
+    $routes->group('kesiswaan/ekskul', static function ($routes) {
+        $routes->get('/', 'Kesiswaan::ekstrakurikuler'); // List ekskul
+        $routes->get('new', 'Kesiswaan::ekskulNew');
+        $routes->post('create', 'Kesiswaan::ekskulCreate');
+        $routes->get('edit/(:num)', 'Kesiswaan::ekskulEdit/$1');
+        $routes->put('update/(:num)', 'Kesiswaan::ekskulUpdate/$1');
+        $routes->delete('delete/(:num)', 'Kesiswaan::ekskulDelete/$1');
+
+        // Penilaian Ekskul
+        $routes->get('nilai/(:num)', 'Kesiswaan::penilaianEkskul/$1');
+        $routes->post('nilai/simpan', 'Kesiswaan::simpanNilaiEkskul');
+    });
+
+    // Pengelolaan Peserta Ekskul
+    $routes->group('kesiswaan/peserta', static function ($routes) {
+        $routes->get('kelola/(:num)', 'Kesiswaan::pesertaKelola/$1');
+        $routes->post('add/(:num)', 'Kesiswaan::pesertaAdd/$1');
+        $routes->delete('delete/(:num)', 'Kesiswaan::pesertaDelete/$1');
+    });
+
+    // Pengelolaan OSIS (CRUD)
+    $routes->group('osis', static function ($routes) {
+        $routes->get('/', 'OsisController::index');
+        $routes->get('new', 'OsisController::new');
+        $routes->post('/', 'OsisController::create');
+        $routes->get('edit/(:num)', 'OsisController::edit/$1');
+        $routes->put('update/(:num)', 'OsisController::update/$1');
+        $routes->delete('delete/(:num)', 'OsisController::delete/$1');
+    });
+
+    // Alumni (CRUD)
+    $routes->group('kesiswaan/alumni', static function ($routes) {
+        $routes->get('/', 'Kesiswaan::alumni');
+        $routes->get('add', 'Kesiswaan::alumniNew');
+        $routes->post('create', 'Kesiswaan::alumniCreate');
+        $routes->get('edit/(:num)', 'Kesiswaan::alumniEdit/$1');
+        $routes->put('update/(:num)', 'Kesiswaan::alumniUpdate/$1');
+        $routes->delete('delete/(:num)', 'Kesiswaan::alumniDelete/$1');
+    });
+
+    // Laporan Kesiswaan & Prestasi
+    $routes->group('kesiswaan-report', static function ($routes) {
+        $routes->get('/', 'KesiswaanReportController::index');
+        $routes->get('show/(:num)', 'KesiswaanReportController::show/$1'); // Detail siswa
+        $routes->get('prestasi/new/(:num)', 'KesiswaanReportController::prestasiNew/$1');
+        $routes->post('prestasi/create', 'KesiswaanReportController::prestasiCreate');
+    });
+
+    // ----------------------
+    // --- E-LEARNING (MODUL KELAS VIRTUAL) ---
+    // ----------------------
+    $routes->group('elearning', static function ($routes) {
+        // KELAS VIRTUAL (CRUD)
+        $routes->get('/', 'Elearning::index');
+        $routes->get('new', 'Elearning::new');
+        
+        // POST '/' untuk create sudah benar dan tidak duplikat dengan 'save'
+        $routes->post('/', 'Elearning::create');
+        
+        $routes->get('(:num)', 'Elearning::show/$1'); // Detail kelas
+        $routes->get('edit/(:num)', 'Elearning::edit/$1');
+        $routes->put('update/(:num)', 'Elearning::update/$1');
+        $routes->delete('delete/(:num)', 'Elearning::delete/$1');
+
+        // STREAM/FORUM
+        $routes->post('(:num)/stream/create', 'Elearning::streamCreate/$1');
+
+        // TUGAS (Assignment)
+        $routes->get('(:num)/tugas/new', 'Elearning::tugasNew/$1');
+        $routes->post('tugas/save', 'Elearning::saveTugas');
+        $routes->get('tugas/(:num)', 'Elearning::tugasDetail/$1');
+        $routes->get('tugas/edit/(:num)', 'Elearning::tugasEdit/$1');
+        $routes->get('tugas/delete/(:num)', 'Elearning::deleteTugas/$1');
+
+        // PENILAIAN TUGAS
+        $routes->post('tugas/nilai', 'Elearning::nilaiTugas');
+    });
+
+    // ----------------------
+    // --- HUMAS/PUBLIKASI (Berita, Pengumuman, Agenda, Album Foto, Afiliasi) ---
+    // ----------------------
+    $routes->group('berita', static function ($routes) {
+        $routes->get('/', 'BeritaController::index');
+        $routes->get('new', 'BeritaController::new');
+        $routes->post('/', 'BeritaController::create');
+        $routes->get('edit/(:num)', 'BeritaController::edit/$1');
+        $routes->put('update/(:num)', 'BeritaController::update/$1');
+        $routes->delete('delete/(:num)', 'BeritaController::delete/$1');
+    });
+
+    $routes->group('pengumuman', static function ($routes) {
+        $routes->get('/', 'PengumumanController::index');
+        $routes->get('new', 'PengumumanController::new');
+        $routes->post('/', 'PengumumanController::create');
+        $routes->get('edit/(:num)', 'PengumumanController::edit/$1');
+        $routes->put('update/(:num)', 'PengumumanController::update/$1');
+        $routes->delete('delete/(:num)', 'PengumumanController::delete/$1');
+    });
+
+    $routes->group('agenda', static function ($routes) {
+        $routes->get('/', 'AgendaController::index');
+        $routes->get('new', 'AgendaController::new');
+        $routes->post('/', 'AgendaController::create');
+        $routes->get('edit/(:num)', 'AgendaController::edit/$1');
+        $routes->put('update/(:num)', 'AgendaController::update/$1');
+        $routes->delete('delete/(:num)', 'AgendaController::delete/$1');
+    });
+
+    $routes->group('albumfoto', static function ($routes) {
+        $routes->get('/', 'AlbumFotoController::index');
+        $routes->get('new', 'AlbumFotoController::new');
+        $routes->post('/', 'AlbumFotoController::create');
+        $routes->get('edit/(:num)', 'AlbumFotoController::edit/$1');
+        $routes->put('update/(:num)', 'AlbumFotoController::update/$1');
+        $routes->delete('delete/(:num)', 'AlbumFotoController::delete/$1');
+    });
+
+    $routes->group('afiliasi', static function ($routes) {
+        $routes->get('/', 'AffiliateController::index');
+        $routes->get('new', 'AffiliateController::new');
+        $routes->post('/', 'AffiliateController::create');
+        $routes->get('edit/(:num)', 'AffiliateController::edit/$1');
+        $routes->put('update/(:num)', 'AffiliateController::update/$1');
+        $routes->delete('delete/(:num)', 'AffiliateController::delete/$1');
+    });
+
+    // ----------------------
+    // --- Kepegawaian (Absensi dan Penggajian) ---
+    // ----------------------
+    $routes->get('kepegawaian', 'AbsensiGuruController::index'); // Dashboard Kepegawaian
+
+    // Absensi Guru
+    $routes->group('absensi-guru', static function ($routes) {
+        $routes->get('/', 'AbsensiGuruController::index'); // Form pemilihan tanggal
+        $routes->get('(:any)', 'AbsensiGuruController::index/$1'); // View data absensi (GET dinamis)
+        $routes->post('kelola', 'AbsensiGuruController::kelola'); // Tampilkan halaman kelola (dari POST tanggal)
+        $routes->post('simpan', 'AbsensiGuruController::simpan'); // Simpan/Update absensi
+    });
+
+    // Absensi Karyawan
+    $routes->group('absensi-karyawan', static function ($routes) {
+        $routes->get('/', 'AbsensiKaryawan::index');
+        $routes->get('(:any)', 'AbsensiKaryawan::index/$1');
+        
+        // PERUBAHAN KRUSIAL: Ubah rute 'kelola' menjadi POST (sudah ada di kode sebelumnya, dikonfirmasi)
+        $routes->post('kelola', 'AbsensiKaryawan::kelola');
+        
+        $routes->post('simpan', 'AbsensiKaryawan::simpan');
+    });
+    
+    // --- PENGGAJIAN KARYAWAN NON-GURU (FIXED FOR url_to) ---
+    // Controller: GajiKaryawanController
+    $routes->group('gaji-karyawan', static function ($routes) {
+        // Rute Tampilan
+        $routes->get('/', 'GajiKaryawanController::index');
+        $routes->get('riwayat', 'GajiKaryawanController::riwayat');
+        $routes->get('proses', 'GajiKaryawanController::proses', ['as' => 'GajiKaryawanController::proses']); // Diberi nama
+
+        // Rute Aksi
+        $routes->post('generate', 'GajiKaryawanController::generate', ['as' => 'GajiKaryawanController::generate']);
+        
+        // Rute DETAIL PER KARYAWAN
+        // Menangani NIK sebagai segmen (:segment). Diberi nama 'as' agar url_to() bekerja.
+        $routes->get('detail/(:segment)', 'GajiKaryawanController::detail/$1', ['as' => 'GajiKaryawanController::detail']);
+        
+        // Rute Aksi Lain
+        $routes->get('slip/(:num)', 'GajiKaryawanController::slip/$1');
+        $routes->get('cetakPdf/(:num)', 'GajiKaryawanController::cetakPdf/$1');
+    });
+    // -----------------------------------------------------------------
+
+    // Rute Komponen Gaji dengan prefix /app (HANYA UNTUK TAMPILAN)
+    $routes->group('komponen-gaji', static function ($routes) {
+        $routes->get('/', 'KomponenGajiController::index');
+        $routes->get('new', 'KomponenGajiController::new');
+        $routes->get('edit/(:num)', 'KomponenGajiController::edit/$1');
+
+        // Aksi POST/PUT/DELETE diarahkan ke root path (Section 4)
+    });
+
+    // Penggajian (Tampilan Halaman GET)
+    // Controller: PenggajianController (Untuk Guru)
+    $routes->group('penggajian', static function ($routes) {
+        $routes->get('/', 'PenggajianController::index');
+        $routes->get('kelola/(:num)', 'PenggajianController::kelola/$1');
+        $routes->get('proses', 'PenggajianController::proses');
+        $routes->get('riwayat', 'PenggajianController::riwayat');
+        $routes->get('slip/(:num)', 'PenggajianController::slip/$1');
+        // Rute POST/DELETE diarahkan ke root path (Section 4)
+    });
+
+// =========================================================================
+// Rute untuk Modul PENGATURAN
+// PENTING: Menambahkan 'namespace' untuk mengarahkan rute ke Controller yang ada di sub-folder APPPATH/Controllers/Pengaturan
+// =========================================================================
+$routes->group('pengaturan', ['namespace' => 'App\Controllers\Pengaturan'], static function ($routes) {
+    
+    // 1. Rute untuk Pengaturan Umum Sekolah
+    // URL: /pengaturan/umum -> UmumSekolah::index()
+    $routes->get('umum', 'UmumSekolah::index');
+
+    // ==========================================================
+    // 2. PENGATURAN PENGGUNA (Manual Group)
+    // ==========================================================
+    $routes->group('pengguna', static function ($routes) {
+        // READ: Daftar Pengguna (GET: /pengaturan/pengguna)
+        $routes->get('/', 'User::index');
+        
+        // READ: Detail Pengguna (GET: /pengaturan/pengguna/1)
+        $routes->get('(:num)', 'User::show/$1');
+        
+        // CREATE: Menampilkan Form Tambah (GET: /pengaturan/pengguna/new)
+        $routes->get('new', 'User::new');
+        
+        // CREATE: Menyimpan Data Baru (POST: /pengaturan/pengguna)
+        $routes->post('/', 'User::store');
+        
+        // UPDATE: Menampilkan Form Edit (GET: /pengaturan/pengguna/edit/1)
+        $routes->get('edit/(:num)', 'User::edit/$1');
+        
+        // UPDATE: Menyimpan Perubahan Data (PUT: /pengaturan/pengguna/update/1)
+        $routes->put('update/(:num)', 'User::update/$1');
+        
+        // DELETE: Menghapus Data (DELETE: /pengaturan/pengguna/delete/1)
+        $routes->delete('delete/(:num)', 'User::delete/$1');
+    });
+    
+    // ==========================================================
+    // 3. PENGATURAN HAK AKSES (Manual Group yang Diperbaiki)
+    // ==========================================================
+    $routes->group('hak_akses', static function ($routes) {
+        // READ: Daftar Hak Akses (GET: /pengaturan/hak_akses)
+        $routes->get('/', 'HakAkses::index');
+        
+        // CREATE: Menampilkan Form Tambah (GET: /pengaturan/hak_akses/new)
+        $routes->get('new', 'HakAkses::new');
+        
+        // CREATE: Menampilkan Form Edit (GET: /pengaturan/hak_akses/edit/1)
+        $routes->get('edit/(:num)', 'HakAkses::edit/$1');
+        
+        // CREATE: Menyimpan Data Baru (POST: /pengaturan/hak_akses)
+        $routes->post('/', 'HakAkses::store');
+        
+        // UPDATE: Menyimpan Perubahan Data (PUT: /pengaturan/hak_akses/update/1)
+        $routes->put('update/(:num)', 'HakAkses::update/$1');
+        
+        // DELETE: Menghapus Data (DELETE: /pengaturan/hak_akses/delete/1)
+        $routes->delete('delete/(:num)', 'HakAkses::delete/$1');
+        
+        // SHOW (Optional, jika ada detail): (GET: /pengaturan/hak_akses/1)
+        $routes->get('(:num)', 'HakAkses::show/$1');
+    });
+    
+    // 4. Rute untuk Pengaturan Akademik
+    $routes->get('akademik-setting', 'AkademikSetting::index');
+    
+    // 5. Rute untuk Pengaturan Keuangan
+    $routes->get('keuangan-setting', 'KeuanganSetting::index');
+    
+    // 6. Rute untuk Pengaturan Notifikasi
+    $routes->get('notifikasi', 'Notifikasi::index');
+    
+    // 7. Rute untuk Log Aktivitas
+    $routes->get('log', 'Log::index');
+    
+    });
+
+});
