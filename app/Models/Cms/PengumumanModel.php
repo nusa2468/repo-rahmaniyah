@@ -10,12 +10,16 @@ class PengumumanModel extends Model
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
+
+    // Mengaktifkan Soft Deletes sesuai migrasi (deleted_at)
     protected $useSoftDeletes   = true;
 
-    // Sesuai Migration: tanggal_berakhir, id_penulis
+    // Disesuaikan dengan field di Migration CreateCmsTables
+    // Perubahan: 'isi' -> 'konten', 'id_user' -> 'id_penulis'
     protected $allowedFields    = [
-        'kode_jenjang', 'judul', 'slug', 'konten', 
-        'status', 'tanggal_berakhir', 'id_penulis',
+        'kode_jenjang', 'judul', 'slug', 
+        'konten', 'status', 'tanggal_berakhir', 
+        'id_penulis', 
         'created_at', 'updated_at', 'deleted_at'
     ];
 
@@ -24,30 +28,42 @@ class PengumumanModel extends Model
     protected $updatedField  = 'updated_at';
     protected $deletedField  = 'deleted_at';
 
-    public function getPengumumanWithAuthor($jenjang = null)
+    /**
+     * Mengambil pengumuman aktif dengan filter jenjang
+     * Menampilkan pengumuman yang statusnya published dan belum kadaluarsa
+     */
+    public function getPengumumanWithAuthor($jenjang = null, $limit = 5)
     {
-        $builder = $this->db->table($this->table);
-        
-        // Join ke users (asumsi tabel users ada field 'nama_lengkap')
-        $builder->select('pengumuman.*, users.nama_lengkap as author_name')
-                ->join('users', 'users.id = pengumuman.id_penulis', 'left')
-                ->where('pengumuman.status', 'published')
-                ->where('pengumuman.deleted_at', null);
+        $builder = $this->select('pengumuman.*, users.fullname as author_fullname')
+                        ->join('users', 'users.id = pengumuman.id_penulis', 'left')
+                        ->where('pengumuman.status', 'published')
+                        ->groupStart() // Filter tanggal berakhir (jika ada)
+                            ->where('tanggal_berakhir >=', date('Y-m-d'))
+                            ->orWhere('tanggal_berakhir', null)
+                        ->groupEnd();
 
-        // Filter tanggal berakhir (opsional: sembunyikan jika sudah lewat)
-        // $builder->where('pengumuman.tanggal_berakhir >=', date('Y-m-d'));
-
-        if ($jenjang && strtoupper($jenjang) !== 'GLOBAL') {
+        // Logic Filter Scope Jenjang
+        if ($jenjang && $jenjang !== 'Global') {
             $builder->groupStart()
                     ->where('pengumuman.kode_jenjang', $jenjang)
-                    ->orWhere('pengumuman.kode_jenjang', null)
+                    ->orWhere('pengumuman.kode_jenjang', null) // Null = Global
                     ->orWhere('pengumuman.kode_jenjang', 'Global')
-                    ->orWhere('pengumuman.kode_jenjang', 'GLOBAL')
                     ->groupEnd();
         }
 
-        return $builder->orderBy('pengumuman.created_at', 'DESC') // pengumuman biasanya order by created
-                       ->get()
-                       ->getResultArray();
+        return $builder->orderBy('pengumuman.created_at', 'DESC')
+                       ->findAll($limit);
+    }
+
+    /**
+     * Mendapatkan detail pengumuman berdasarkan slug
+     */
+    public function getPengumumanBySlug($slug)
+    {
+        return $this->select('pengumuman.*, users.fullname as author_fullname')
+                    ->join('users', 'users.id = pengumuman.id_penulis', 'left')
+                    ->where('pengumuman.slug', $slug)
+                    ->where('pengumuman.status', 'published')
+                    ->first();
     }
 }
