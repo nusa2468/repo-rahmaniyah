@@ -204,7 +204,8 @@
 <body>
 
     <div class="no-print">
-        <button class="btn btn-back" onclick="window.history.back()">Kembali</button>
+        <!-- PERUBAHAN: Tombol Kembali diganti menjadi Tutup dan menggunakan window.close() -->
+        <button class="btn btn-back" onclick="window.close()">Tutup</button>
         <button class="btn btn-print" onclick="window.print()">Cetak Slip</button>
     </div>
 

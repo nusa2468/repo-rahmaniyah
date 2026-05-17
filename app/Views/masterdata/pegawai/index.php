@@ -17,18 +17,48 @@
         return current_url() . '?' . http_build_query($params);
     };
 
-    if (!function_exists('getJenjangBadge')) {
-        function getJenjangBadge($kode) {
-            $kode = strtoupper($kode ?? '');
-            return match ($kode) {
-                'SD', 'MI'        => 'bg-rose-100 text-rose-700 border-rose-200',
-                'SMP', 'MTS'      => 'bg-sky-100 text-sky-700 border-blue-200',
-                'SMA', 'SMK', 'MA'=> 'bg-indigo-100 text-indigo-700 border-indigo-200',
-                'TK', 'PAUD'      => 'bg-emerald-100 text-emerald-700 border-emerald-200',
-                default           => 'bg-gray-100 text-gray-600 border-gray-200',
-            };
+    // 1. DINAMIS: Ambil Jenjang List langsung dari Model 
+    if (empty($jenjang_list)) {
+        if (class_exists(\App\Models\JenjangModel::class)) {
+            $jenjangModel = new \App\Models\JenjangModel();
+            $jenjang_list = $jenjangModel->getDropdownOptions();
+        } else {
+            $jenjang_list = [];
         }
     }
+
+    // 2. DINAMIS: Buat mapping warna badge secara otomatis berdasarkan urutan di Database
+    $badgeColors = [
+        'bg-rose-100 text-rose-700 border-rose-200',
+        'bg-sky-100 text-sky-700 border-blue-200',
+        'bg-emerald-100 text-emerald-700 border-emerald-200',
+        'bg-amber-100 text-amber-700 border-amber-200',
+        'bg-indigo-100 text-indigo-700 border-indigo-200',
+        'bg-pink-100 text-pink-700 border-pink-200',
+        'bg-teal-100 text-teal-700 border-teal-200',
+    ];
+    
+    $dynamicBadges = [];
+    $colorIndex = 0;
+    
+    // Tetapkan badge khusus untuk Yayasan/Pusat agar selalu konsisten dan berwibawa
+    $dynamicBadges['GLOBAL']  = 'bg-purple-100 text-purple-700 border-purple-200 shadow-sm';
+    $dynamicBadges['YAYASAN'] = 'bg-purple-100 text-purple-700 border-purple-200 shadow-sm';
+    $dynamicBadges['PUSAT']   = 'bg-purple-100 text-purple-700 border-purple-200 shadow-sm';
+    
+    foreach ($jenjang_list as $j) {
+        $kode = is_array($j) ? strtoupper($j['kode_jenjang']) : strtoupper($j->kode_jenjang);
+        if (!isset($dynamicBadges[$kode])) {
+            $dynamicBadges[$kode] = $badgeColors[$colorIndex % count($badgeColors)];
+            $colorIndex++;
+        }
+    }
+
+    // Ganti fungsi statis menjadi Closure Dinamis
+    $getJenjangBadge = function($kode) use ($dynamicBadges) {
+        $kode = strtoupper($kode ?? '');
+        return $dynamicBadges[$kode] ?? 'bg-gray-100 text-gray-600 border-gray-200';
+    };
 ?>
 
 <div class="max-w-7xl mx-auto space-y-6">
@@ -51,25 +81,28 @@
         </ol>
     </nav>
 
-    <!-- 2. Header & Tombol (Perfect Alignment Fix) -->
+    <!-- 2. Header & Tombol -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
             <h1 class="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Database Pegawai</h1>
             <div class="flex items-center gap-2 mt-1">
                 <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Pendidik (Guru) dan Tenaga Kependidikan (Staff)</p>
-                <!-- Indikator Role & Unit -->
-                <?php if(in_array($role, ['superadmin', 'yayasan'])): ?>
-                    <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 uppercase tracking-wide">Global View</span>
+                
+                <!-- Indikator Data yang Sedang Ditampilkan -->
+                <?php if(empty($currentUnit)): ?>
+                    <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-700 uppercase tracking-wide border border-indigo-200">Semua Unit (Global View)</span>
+                <?php elseif(in_array(strtoupper($currentUnit), ['GLOBAL', 'YAYASAN', 'PUSAT'])): ?>
+                    <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 uppercase tracking-wide border border-purple-200">Kantor Yayasan (Pusat)</span>
                 <?php else: ?>
-                    <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 uppercase tracking-wide">Unit: <?= esc($jenjang) ?></span>
+                    <span class="ml-2 px-2 py-0.5 rounded text-[10px] font-bold <?= $getJenjangBadge($currentUnit) ?> uppercase tracking-wide border">Unit: <?= esc($currentUnit) ?></span>
                 <?php endif; ?>
             </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 h-10">
             <!-- DROPDOWN FILTER UNIT (Khusus Superadmin/Yayasan) -->
-            <?php if (in_array($role, ['superadmin', 'yayasan']) && !empty($jenjang_list)): ?>
+            <?php if (in_array($role, ['superadmin', 'yayasan']) && isset($jenjang_list)): ?>
                 <form action="" method="get" class="h-full flex items-center m-0 p-0">
                     <input type="hidden" name="jenis" value="<?= esc($currentJenis) ?>">
                     <div class="relative h-full group"> 
@@ -79,14 +112,21 @@
                         <select name="unit" onchange="this.form.submit()" 
                                 class="h-full pl-9 pr-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 text-xs font-bold uppercase tracking-wide rounded-xl shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none cursor-pointer hover:bg-gray-50 transition-colors appearance-none flex items-center"
                                 style="height: 40px !important;">
-                            <option value="">Semua Unit</option>
+                            
+                            <!-- Opsi Kosong (Menampilkan Semua Data Tanpa Filter) -->
+                            <option value="" <?= empty($currentUnit) ? 'selected' : '' ?>>🌐 TAMPILKAN SEMUA UNIT</option>
+                            
+                            <!-- Opsi Penempatan Spesifik Di-Loop Dinamis dari Database -->
                             <?php foreach ($jenjang_list as $j): ?>
                                 <?php 
                                     $val = is_array($j) ? ($j['kode_jenjang'] ?? '-') : ($j->kode_jenjang ?? '-');
                                     $lbl = is_array($j) ? ($j['nama_jenjang'] ?? 'Unit ' . $val) : ($j->nama_jenjang ?? 'Unit ' . $val);
                                     $sel = ($currentUnit === $val) ? 'selected' : '';
+                                    
+                                    // Ikon cerdas: Gedung untuk Yayasan/Global, Sekolah untuk Unit Akademik
+                                    $icon = in_array(strtoupper($val), ['GLOBAL', 'YAYASAN', 'PUSAT']) ? '🏢' : '🏫';
                                 ?>
-                                <option value="<?= esc($val) ?>" <?= $sel ?>><?= esc($lbl) ?> (<?= esc($val) ?>)</option>
+                                <option value="<?= esc($val) ?>" <?= $sel ?>><?= $icon ?> <?= esc($lbl) ?></option>
                             <?php endforeach; ?>
                         </select>
                         <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-gray-400">
@@ -113,7 +153,7 @@
             <div class="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
             <p class="text-xs font-bold text-indigo-100 uppercase tracking-wider relative z-10">Total Pegawai</p>
             <div class="flex items-baseline gap-1 mt-1 relative z-10">
-                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total']) ?></h3>
+                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total'] ?? 0) ?></h3>
                 <span class="text-xs text-indigo-200 font-medium">Org</span>
             </div>
             <i class="fas fa-users absolute bottom-4 right-4 text-white/20 text-3xl"></i>
@@ -124,7 +164,7 @@
             <div class="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
             <p class="text-xs font-bold text-blue-100 uppercase tracking-wider relative z-10">Total Guru</p>
             <div class="flex items-baseline gap-1 mt-1 relative z-10">
-                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total_guru']) ?></h3>
+                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total_guru'] ?? 0) ?></h3>
                 <span class="text-xs text-blue-200 font-medium">Org</span>
             </div>
             <i class="fas fa-chalkboard-teacher absolute bottom-4 right-4 text-white/20 text-3xl"></i>
@@ -133,9 +173,9 @@
         <!-- Staff -->
         <div class="bg-amber-500 rounded-2xl p-5 shadow-lg shadow-amber-500/30 relative overflow-hidden group">
             <div class="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-            <p class="text-xs font-bold text-amber-100 uppercase tracking-wider relative z-10">Total Staff</p>
+            <p class="text-xs font-bold text-amber-100 uppercase tracking-wider relative z-10">Staff & Penunjang</p>
             <div class="flex items-baseline gap-1 mt-1 relative z-10">
-                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total_staff']) ?></h3>
+                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total_staff'] ?? 0) ?></h3>
                 <span class="text-xs text-amber-100 font-medium">Org</span>
             </div>
             <i class="fas fa-briefcase absolute bottom-4 right-4 text-white/20 text-3xl"></i>
@@ -146,7 +186,7 @@
             <div class="absolute right-0 top-0 w-24 h-24 bg-white/10 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
             <p class="text-xs font-bold text-emerald-100 uppercase tracking-wider relative z-10">Status Aktif</p>
             <div class="flex items-baseline gap-1 mt-1 relative z-10">
-                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total_aktif']) ?></h3>
+                <h3 class="text-3xl font-black text-white"><?= number_format($stats['total_aktif'] ?? 0) ?></h3>
                 <span class="text-xs text-emerald-200 font-medium">Org</span>
             </div>
             <i class="fas fa-user-check absolute bottom-4 right-4 text-white/20 text-3xl"></i>
@@ -158,11 +198,12 @@
         
         <!-- Filter Bar -->
         <div class="border-b border-gray-200 dark:border-white/10 p-4 flex flex-col md:flex-row justify-between gap-4 items-center bg-gray-50/50 dark:bg-white/5">
-            <!-- Tabs -->
-            <div class="flex p-1 bg-gray-200 dark:bg-gray-700 rounded-xl">
-                <a href="<?= $buildTabUrl('all') ?>" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all no-underline <?= $currentJenis == 'all' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700' ?>">Semua</a>
-                <a href="<?= $buildTabUrl('guru') ?>" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all no-underline <?= $currentJenis == 'guru' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-indigo-600' ?>">Guru</a>
-                <a href="<?= $buildTabUrl('staff') ?>" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all no-underline <?= $currentJenis == 'staff' ? 'bg-white shadow text-amber-600' : 'text-gray-500 hover:text-amber-600' ?>">Tendik/Staff</a>
+            <!-- Tabs (DITAMBAHKAN PENUNJANG) -->
+            <div class="flex p-1 bg-gray-200 dark:bg-gray-700 rounded-xl overflow-x-auto custom-scrollbar">
+                <a href="<?= $buildTabUrl('all') ?>" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all no-underline whitespace-nowrap <?= $currentJenis == 'all' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700' ?>">Semua</a>
+                <a href="<?= $buildTabUrl('guru') ?>" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all no-underline whitespace-nowrap <?= $currentJenis == 'guru' ? 'bg-white shadow text-indigo-600' : 'text-gray-500 hover:text-indigo-600' ?>">Guru</a>
+                <a href="<?= $buildTabUrl('staff') ?>" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all no-underline whitespace-nowrap <?= $currentJenis == 'staff' ? 'bg-white shadow text-amber-600' : 'text-gray-500 hover:text-amber-600' ?>">Tendik/Staff</a>
+                <a href="<?= $buildTabUrl('penunjang') ?>" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all no-underline whitespace-nowrap <?= $currentJenis == 'penunjang' ? 'bg-white shadow text-emerald-600' : 'text-gray-500 hover:text-emerald-600' ?>">Penunjang</a>
             </div>
 
             <!-- Search -->
@@ -187,13 +228,15 @@
                         <th class="px-6 py-4 text-center w-12">No</th>
                         <th class="px-6 py-4">Nama Pegawai</th>
                         <th class="px-6 py-4">Status & Jabatan</th>
-                        <th class="px-6 py-4 text-center">Unit</th>
+                        <th class="px-6 py-4 text-center">Unit / Penempatan</th>
                         <th class="px-6 py-4 text-center">NIP / Identitas</th>
                         <th class="px-6 py-4 text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                     <?php 
+                    $per_page = $per_page ?? 10;
+                    $current_page = $current_page ?? 1;
                     $startNo = ($current_page - 1) * $per_page + 1;
                     
                     if (empty($pegawai_data)): ?>
@@ -206,8 +249,16 @@
                                     <?= esc(($p['gelar_depan'] ? $p['gelar_depan'].' ' : '') . $p['nama_lengkap'] . ($p['gelar_belakang'] ? ', '.$p['gelar_belakang'] : '')) ?>
                                 </div>
                                 <div class="flex items-center gap-2 mt-1">
-                                    <span class="text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-tight <?= ($p['jenis_pegawai'] == 'guru') ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-amber-50 text-amber-600 border-amber-100' ?>">
-                                        <?= strtoupper($p['jenis_pegawai']) ?>
+                                    <?php 
+                                    // FIX: Penyesuaian Badge Warna Untuk 3 Kategori (Guru, Staff, Penunjang)
+                                    $jp = strtolower($p['jenis_pegawai'] ?? 'staff');
+                                    $jpClass = 'bg-gray-50 text-gray-600 border-gray-100';
+                                    if ($jp === 'guru') $jpClass = 'bg-indigo-50 text-indigo-600 border-indigo-100';
+                                    if ($jp === 'staff') $jpClass = 'bg-amber-50 text-amber-600 border-amber-100';
+                                    if ($jp === 'penunjang') $jpClass = 'bg-emerald-50 text-emerald-600 border-emerald-100';
+                                    ?>
+                                    <span class="text-[9px] font-black px-2 py-0.5 rounded border uppercase tracking-tight <?= $jpClass ?>">
+                                        <?= strtoupper($jp) ?>
                                     </span>
                                     <span class="text-xs text-gray-400">
                                         <?= ($p['jenis_kelamin'] == 'L') ? '<i class="fas fa-mars text-blue-400" title="Laki-laki"></i>' : '<i class="fas fa-venus text-pink-400" title="Perempuan"></i>' ?>
@@ -219,8 +270,8 @@
                                 <div class="text-[10px] text-gray-400 uppercase tracking-tight"><?= esc($p['status_kepegawaian'] ?? '-') ?></div>
                             </td>
                             <td class="px-6 py-4 text-center">
-                                <span class="inline-flex px-2 py-1 rounded text-[10px] font-black border shadow-sm uppercase tracking-wide <?= getJenjangBadge($p['kode_jenjang']) ?>">
-                                    <?= esc($p['kode_jenjang']) ?>
+                                <span class="inline-flex px-2 py-1 rounded text-[10px] font-black border shadow-sm uppercase tracking-wide <?= $getJenjangBadge($p['kode_jenjang']) ?>">
+                                    <?= esc(in_array(strtoupper($p['kode_jenjang']), ['GLOBAL', 'YAYASAN', 'PUSAT']) ? 'YAYASAN' : $p['kode_jenjang']) ?>
                                 </span>
                             </td>
                             <td class="px-6 py-4 text-center font-mono text-xs text-gray-500 tracking-tight">

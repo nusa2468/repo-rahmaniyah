@@ -42,40 +42,51 @@
     <!-- FILTER BAR -->
     <div class="bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-slate-100 dark:border-white/5 shadow-xl p-8 mb-8 no-print">
         <form action="" method="get" class="grid grid-cols-1 md:grid-cols-5 gap-6 items-end">
+            <!-- JENIS PEGAWAI (FIX: Ditambah Penunjang) -->
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Jenis Pegawai</label>
-                <select name="tipe" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-black uppercase focus:border-indigo-500 outline-none">
+                <select name="tipe" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-black uppercase focus:border-indigo-500 outline-none">
                     <option value="guru" <?= $currentTipe == 'guru' ? 'selected' : '' ?>>GURU / PENDIDIK</option>
                     <option value="staff" <?= $currentTipe == 'staff' ? 'selected' : '' ?>>STAFF / TENDIK</option>
+                    <option value="penunjang" <?= $currentTipe == 'penunjang' ? 'selected' : '' ?>>PENUNJANG (SATPAM/CS)</option>
                 </select>
             </div>
+
+            <!-- UNIT KERJA (FIX: Dipisahkan Semua Unit & Kantor Yayasan) -->
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unit Kerja</label>
-                <select name="unit" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-black uppercase focus:border-indigo-500 outline-none" <?= !$is_global ? 'disabled' : '' ?>>
-                    <option value="GLOBAL">SEMUA UNIT</option>
+                <select name="unit" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-black uppercase focus:border-indigo-500 outline-none <?= !$is_global ? 'opacity-70 cursor-not-allowed' : '' ?>" <?= !$is_global ? 'disabled' : '' ?>>
+                    <option value="" <?= ($current_unit === '' || $current_unit === null) ? 'selected' : '' ?>>🌐 SEMUA UNIT</option>
+                    <option value="GLOBAL" <?= $current_unit === 'GLOBAL' ? 'selected' : '' ?>>🏢 KANTOR YAYASAN</option>
                     <?php foreach($jenjang_list as $j): ?>
-                        <option value="<?= $j['kode_jenjang'] ?>" <?= $current_unit == $j['kode_jenjang'] ? 'selected' : '' ?>>UNIT <?= $j['kode_jenjang'] ?></option>
+                        <?php if(in_array(strtoupper($j['kode_jenjang']), ['GLOBAL','YAYASAN'])) continue; ?>
+                        <option value="<?= $j['kode_jenjang'] ?>" <?= $current_unit == $j['kode_jenjang'] ? 'selected' : '' ?>>🏫 UNIT <?= $j['kode_jenjang'] ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+
+            <!-- BULAN -->
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Bulan</label>
-                <select name="bulan" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-black focus:border-indigo-500 outline-none">
+                <select name="bulan" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-black uppercase focus:border-indigo-500 outline-none">
                     <?php foreach($namaBulan as $m => $n): ?>
                         <option value="<?= $m ?>" <?= $bulan == $m ? 'selected' : '' ?>><?= strtoupper($n) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+
+            <!-- TAHUN -->
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tahun</label>
-                <select name="tahun" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-black focus:border-indigo-500 outline-none">
+                <select name="tahun" class="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-[11px] font-black uppercase focus:border-indigo-500 outline-none">
                     <?php for($i=date('Y'); $i>=2023; $i--): ?>
                         <option value="<?= $i ?>" <?= $tahun == $i ? 'selected' : '' ?>><?= $i ?></option>
                     <?php endfor; ?>
                 </select>
             </div>
-            <button type="submit" class="bg-indigo-600 text-white font-black py-4 px-6 rounded-2xl shadow-lg hover:bg-indigo-700 transition-all border-b-4 border-indigo-800 text-[10px] uppercase tracking-widest">
-                Hitung Gaji
+
+            <button type="submit" class="bg-indigo-600 text-white font-black py-3.5 px-6 rounded-2xl shadow-lg hover:bg-indigo-700 transition-all border-b-4 border-indigo-800 text-[10px] uppercase tracking-widest flex items-center justify-center gap-2">
+                <i class="fas fa-search"></i> Hitung Gaji
             </button>
         </form>
     </div>
@@ -101,8 +112,14 @@
         
         <!-- Print Header -->
         <div class="hidden print-header p-8 text-center border-b-2 border-black mb-4">
-            <h2 class="text-2xl font-black uppercase">Laporan Rekapitulasi Gaji</h2>
-            <p class="text-sm font-bold mt-1">Periode: <?= $namaBulan[$bulan] ?> <?= $tahun ?> | Unit: <?= esc($current_unit) ?></p>
+            <h2 class="text-2xl font-black uppercase tracking-widest">Laporan Rekapitulasi Gaji</h2>
+            <?php 
+                // Format Unit Label untuk Cetak
+                $labelUnitCetak = 'Semua Unit Terpadu';
+                if ($current_unit === 'GLOBAL') $labelUnitCetak = 'Kantor Yayasan (Pusat)';
+                elseif (!empty($current_unit)) $labelUnitCetak = 'Unit ' . $current_unit;
+            ?>
+            <p class="text-sm font-bold mt-1">Periode: <?= $namaBulan[$bulan] ?> <?= $tahun ?> | Kategori: <?= strtoupper($currentTipe) ?> | Unit: <?= esc($labelUnitCetak) ?></p>
         </div>
 
         <div class="overflow-x-auto custom-scrollbar">
@@ -110,7 +127,7 @@
                 <thead>
                     <tr class="bg-slate-50 dark:bg-white/5 border-b-2 border-slate-100 dark:border-white/10 print:bg-gray-100">
                         <th class="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest w-12 text-center print:text-black">No</th>
-                        <th class="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest print:text-black">Pegawai</th>
+                        <th class="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest print:text-black">Pegawai & Unit</th>
                         <th class="px-4 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center print:text-black">Hadir</th>
                         <th class="px-6 py-5 text-[10px] font-black uppercase text-emerald-600 tracking-widest text-right print:text-black">Pendapatan</th>
                         <th class="px-6 py-5 text-[10px] font-black uppercase text-rose-500 tracking-widest text-right print:text-black">Potongan</th>
@@ -126,7 +143,9 @@
                                 <td class="px-8 py-4 text-center font-black text-slate-300 print:text-black print:border-b"><?= $no++ ?></td>
                                 <td class="px-6 py-4 print:border-b">
                                     <p class="font-black text-slate-800 dark:text-slate-100 uppercase italic leading-none group-hover:text-indigo-600 transition-colors print:text-black"><?= esc($row['pegawai']['nama_lengkap']) ?></p>
-                                    <p class="text-[9px] font-bold text-slate-400 uppercase mt-1 print:text-black">NIP: <?= esc($row['pegawai']['nip'] ?? '-') ?></p>
+                                    <p class="text-[9px] font-bold text-slate-400 uppercase mt-1 print:text-black">
+                                        NIP: <?= esc($row['pegawai']['nip'] ?? '-') ?> • UNIT: <?= esc($row['pegawai']['kode_jenjang']) ?>
+                                    </p>
                                 </td>
                                 <td class="px-4 py-4 text-center font-black text-slate-600 bg-slate-50/50 rounded-lg print:bg-transparent print:text-black print:border-b">
                                     <?= $row['kehadiran'] ?> Hari

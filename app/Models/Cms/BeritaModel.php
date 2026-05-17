@@ -26,18 +26,19 @@ class BeritaModel extends Model
 
     /**
      * Mengambil berita dengan filter jenjang dan join author (id_penulis)
-     * UPDATE: Menggunakan db->table() langsung untuk menghindari interferensi query dari Controller
      */
     public function getBeritaWithAuthor($jenjang = null)
     {
-        // PENTING: Gunakan $this->db->table(...) bukan $this->select(...)
-        // Ini membuat builder baru yang "bersih" dari query where('jenjang') yang mungkin nyangkut dari Controller
         $builder = $this->db->table($this->table); 
         
-        $builder->select('berita.*, users.username as author_name, users.fullname as author_fullname')
+        // FIX FATAL ERROR: Mengganti users.fullname menjadi users.nama_lengkap
+        $builder->select('berita.*, users.username as author_name, users.nama_lengkap as author_fullname')
                 ->join('users', 'users.id = berita.id_penulis', 'left')
-                ->where('berita.status', 'published')
-                ->where('berita.deleted_at', null); // Manual check soft delete karena pakai db->table
+                ->groupStart()
+                    ->where('berita.status', 'Published')
+                    ->orWhere('berita.status', 'published')
+                ->groupEnd()
+                ->where('berita.deleted_at', null);
 
         // Logic Filter Scope Jenjang
         if ($jenjang && strtoupper($jenjang) !== 'GLOBAL') {
@@ -59,15 +60,18 @@ class BeritaModel extends Model
      */
     public function getBeritaBySlug($slug)
     {
-        // Gunakan teknik isolasi yang sama
         $builder = $this->db->table($this->table);
 
-        return $builder->select('berita.*, users.username as author_name, users.fullname as author_fullname')
+        // FIX FATAL ERROR: Mengganti users.fullname menjadi users.nama_lengkap
+        return $builder->select('berita.*, users.username as author_name, users.nama_lengkap as author_fullname')
                     ->join('users', 'users.id = berita.id_penulis', 'left')
                     ->where('berita.slug', $slug)
-                    ->where('berita.status', 'published')
+                    ->groupStart()
+                        ->where('berita.status', 'Published')
+                        ->orWhere('berita.status', 'published')
+                    ->groupEnd()
                     ->where('berita.deleted_at', null)
                     ->get()
-                    ->getRowArray(); // getRowArray() setara dengan first() untuk result array
+                    ->getRowArray();
     }
 }

@@ -3,7 +3,7 @@
  * Sidebar Partial (APPPATH/Views/layout/_partials/sidebar.php)
  * UI: Tailwind CSS v4 + Alpine.js
  * Logic: Full Role & Unit Based Filtering
- * Update: Refined Navigation Structure & Direct Links
+ * Update: Penambahan Modul Diskusi (Diarahkan ke Dashboard jika kosong)
  */
 
 helper('menu'); // Mengaktifkan pengecekan akses menu
@@ -22,6 +22,29 @@ $userName    = $session->get('nama_lengkap') ?? 'User';
 $userRole    = $session->get('role_display') ?? 'System User';
 $userJenjang = $session->get('kode_jenjang') ?? 'GLOBAL';
 
+// =========================================================================
+// LOGIKA SMART LINK: DISKUSI & BANTUAN
+// =========================================================================
+// Default diarahkan ke Dashboard Utama jika integrasi belum di-setting
+$discussLink = base_url('app'); 
+$discussTarget = '_self'; 
+
+try {
+    if (class_exists(\App\Models\SettingsModel::class)) {
+        $settingsModel = new \App\Models\SettingsModel();
+        $sysSettings = $settingsModel->getSettingsAsArray('GLOBAL');
+        
+        // Membaca link NusantaraERP (atau Odoo lama sebagai fallback)
+        $externalLink = $sysSettings['nusantaraerp_discuss_link'] ?? $sysSettings['odoo_discuss_link'] ?? '';
+        
+        if (!empty($externalLink)) {
+            $discussLink = $externalLink;
+            $discussTarget = '_blank'; // Buka di tab baru jika itu link eksternal
+        }
+    }
+} catch (\Throwable $e) {}
+// =========================================================================
+
 // Grouping Modul
 $portalModules = ['portal'];
 $masterDataModules = ['masterdata', 'jenjang','identitas','organisasi', 'jabatan','pegawai', 'siswa', 'matapelajaran', 'kelas', 'tahunajaran', 'kurikulum', 'jenispembayaran', 'komponen-gaji'];
@@ -30,10 +53,10 @@ $keuanganModules = ['keuangan', 'tagihan', 'laporankeuangan', 'pembayaran', 'pen
 $akademikModules = ['akademik', 'kalender', 'jadwalpelajaran', 'absensi-siswa', 'absensi-otomatis', 'nilai', 'rapor', 'ijazah', 'kenaikan-kelas']; 
 $kesiswaanModules = ['kesiswaan', 'osis', 'kesiswaan-report', 'ekskul', 'alumni']; 
 $kepegawaianModules = ['kepegawaian', 'absensi-guru', 'absensi-guru-manual', 'gaji-guru', 'absensi-karyawan', 'absensi-karyawan-manual', 'gaji-karyawan'];
-$saprasModules = ['sapras', 'tanah', 'gedung', 'ruangan', 'peralatan', 'inventaris'];
+$saprasModules = ['sapras', 'tanah', 'gedung', 'ruangan', 'peralatan', 'inventaris', 'barang', 'kategori', 'lokasi', 'pengadaan', 'peminjaman', 'pemeliharaan'];
 $humasModules = ['humas', 'berita', 'pengumuman', 'agenda', 'albumfoto', 'afiliasi', 'cms'];
 $laporanModules = ['laporan', 'laporan-akademik', 'laporan-keuangan', 'laporan-kepegawaian', 'laporan-kesiswaan'];
-$pengaturanModules = ['pengaturan', 'pengguna', 'hak_akses', 'akademik-setting', 'keuangan-setting', 'notifikasi', 'log', 'kelembagaan'];
+$pengaturanModules = ['pengaturan', 'pengguna', 'hak_akses', 'akademik-setting', 'keuangan-setting', 'notifikasi', 'log', 'kelembagaan', 'umum'];
 $elearningModules = ['elearning'];
 $pembelajaranModules = ['pembelajaran', 'bahanajar'];
 $databaseModules = ['database'];
@@ -98,6 +121,26 @@ elseif (in_array($currentModule, $portalModules)) $initialMenu = 'portal';
                 <span>Dashboard Utama</span>
             </a>
         </div>
+
+        <!-- KOMUNIKASI & KOLABORASI (WHITE-LABEL NUSANTARA ERP) -->
+        <?php if (check_menu_access(['superadmin', 'admin', 'guru', 'karyawan'])): ?>
+        <div>
+            <p class="px-4 mb-2 text-[10px] font-black text-emerald-600/70 uppercase tracking-[0.2em]">Kolaborasi</p>
+            <div class="space-y-1 mt-1">
+                <!-- MENGGUNAKAN VARIABEL DINAMIS $discussLink dan $discussTarget -->
+                <a href="<?= esc($discussLink) ?>" target="<?= $discussTarget ?>"
+                   class="<?= $getLinkClass(false) ?> w-full flex justify-between group hover:bg-emerald-500/10 hover:text-emerald-400">
+                    <span class="flex items-center">
+                        <i class="fas fa-comments w-5 text-center mr-3 text-emerald-500"></i>
+                        <span>Diskusi & Bantuan</span>
+                    </span>
+                    <?php if($discussTarget === '_blank'): ?>
+                        <i class="fas fa-external-link-alt text-[10px] opacity-50"></i>
+                    <?php endif; ?>
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- DATA FUNDAMENTAL -->
         <?php if (check_menu_access(['superadmin', 'admin', 'yayasan'])): ?>
@@ -184,13 +227,13 @@ elseif (in_array($currentModule, $portalModules)) $initialMenu = 'portal';
                 </a>
             </div>
 
-            <!-- SAPRAS -->
+            <!-- SAPRAS (ASET ERP) -->
             <div class="space-y-1 mt-1">
                 <a href="<?= base_url('app/sapras/dashboard') ?>" 
                    class="<?= $getLinkClass(in_array($currentModule, $saprasModules)) ?> w-full flex justify-between">
                     <span class="flex items-center">
-                        <i class="fas fa-building w-5 text-center mr-3"></i>
-                        <span>Sapras</span>
+                        <i class="fas fa-boxes w-5 text-center mr-3"></i>
+                        <span>Sapras & Aset</span>
                     </span>
                 </a>
             </div>
@@ -286,6 +329,9 @@ elseif (in_array($currentModule, $portalModules)) $initialMenu = 'portal';
                     <i class="fas fa-chevron-right text-[10px] transition-transform duration-200" :class="activeMenu === 'pengaturan' ? 'rotate-90' : ''"></i>
                 </button>
                 <div x-show="activeMenu === 'pengaturan'" x-cloak x-collapse class="pl-4 space-y-1 mt-1 border-l border-white/5 ml-6">
+                    <!-- LINK BARU: KONFIGURASI SAAS & UMUM -->
+                    <a href="<?= base_url('app/pengaturan/umum') ?>" class="<?= $getSubLinkClass($currentModule === 'umum') ?>">Konfigurasi SaaS & Umum</a>
+                    
                     <a href="<?= base_url('app/pengaturan/pengguna') ?>" class="<?= $getSubLinkClass($currentModule === 'pengguna') ?>">Manajemen User</a>
                     <a href="<?= base_url('app/pengaturan/hak_akses') ?>" class="<?= $getSubLinkClass($currentModule === 'hak_akses') ?>">Role & Permission</a>
                     <a href="<?= base_url('app/database') ?>" class="<?= $getSubLinkClass($currentModule === 'dashboard') ?>">Backup & Restore ++</a>

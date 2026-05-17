@@ -3,100 +3,117 @@
 namespace App\Controllers\Sapras;
 
 use App\Controllers\BaseController;
-use App\Models\Sapras\TanahModel;
-use App\Models\Sapras\GedungModel;
-use App\Models\Sapras\RuanganModel;
-use App\Models\Sapras\PeralatanModel;
-use App\Models\Sapras\InventarisModel;
+use App\Models\Sapras\AsetBarangModel;
+use App\Models\Sapras\AsetLokasiModel;
+use App\Models\Sapras\AsetKategoriModel;
+use App\Models\Sapras\AsetPengadaanModel;
+use App\Models\Sapras\AsetPeminjamanModel;
+use App\Models\Sapras\AsetPemeliharaanModel;
 
 class DashboardController extends BaseController
 {
     public function index()
     {
         // ===============================
-        // 1. Ambil scope unit (DINAMIS)
+        // 1. IDENTIFIKASI SCOPE OTORITAS
         // ===============================
-        $kodeJenjang = session('kode_jenjang'); // null = yayasan / global
-
-        // ===============================
-        // 2. Init model
-        // ===============================
-        $tanahModel      = new TanahModel();
-        $gedungModel     = new GedungModel();
-        $ruanganModel    = new RuanganModel();
-        $peralatanModel  = new PeralatanModel();
-        $inventarisModel = new InventarisModel();
+        $kodeJenjang = session('kode_jenjang'); 
+        $isGlobal = (empty($kodeJenjang) || strtoupper($kodeJenjang) === 'GLOBAL' || strtoupper($kodeJenjang) === 'YAYASAN');
 
         // ===============================
-        // 3. SUMMARY (AGREGAT) - Safe Access Logic
+        // 2. INISIALISASI MODEL BARU
         // ===============================
-        
-        // Total Luas Tanah
-        $dataTanah = $tanahModel->byJenjang($kodeJenjang)->selectSum('luas')->first();
-        $totalTanah = $dataTanah['luas'] ?? 0;
-
-        // Total Luas Gedung
-        $dataGedung = $gedungModel->byJenjang($kodeJenjang)->selectSum('luas')->first();
-        $totalGedung = $dataGedung['luas'] ?? 0;
-
-        // Total Kapasitas Ruangan
-        $dataRuangan = $ruanganModel->byJenjang($kodeJenjang)->selectSum('kapasitas')->first();
-        $totalKapasitas = $dataRuangan['kapasitas'] ?? 0;
-
-        // Total Item (Peralatan + Inventaris)
-        $dataAlat = $peralatanModel->byJenjang($kodeJenjang)->selectSum('jumlah')->first();
-        $sumPeralatan = $dataAlat['jumlah'] ?? 0;
-
-        $dataInv = $inventarisModel->byJenjang($kodeJenjang)->selectSum('jumlah')->first();
-        $sumInventaris = $dataInv['jumlah'] ?? 0;
-
-        $totalItem = $sumPeralatan + $sumInventaris;
+        $kategoriModel     = new AsetKategoriModel();
+        $lokasiModel       = new AsetLokasiModel();
+        $barangModel       = new AsetBarangModel();
+        $pengadaanModel    = new AsetPengadaanModel();
+        $peminjamanModel   = new AsetPeminjamanModel();
+        $pemeliharaanModel = new AsetPemeliharaanModel();
 
         // ===============================
-        // 4. COUNT DATA (Jumlah Record)
-        // ===============================
-        // Menggunakan instance yang sama (Model CI4 otomatis reset builder setelah query)
-        $count = [
-            'tanah'      => $tanahModel->byJenjang($kodeJenjang)->countAllResults(),
-            'gedung'     => $gedungModel->byJenjang($kodeJenjang)->countAllResults(),
-            'ruangan'    => $ruanganModel->byJenjang($kodeJenjang)->countAllResults(),
-            'peralatan'  => $peralatanModel->byJenjang($kodeJenjang)->countAllResults(),
-            'inventaris' => $inventarisModel->byJenjang($kodeJenjang)->countAllResults(),
-        ];
-
-        // ===============================
-        // 5. KONDISI PERALATAN (Statistik Kondisi)
+        // 3. STATISTIK UTAMA (MASTER ASET)
         // ===============================
         
-        $dataBaik = $peralatanModel->byJenjang($kodeJenjang)->where('kondisi', 'Baik')->selectSum('jumlah')->first();
-        $jmlBaik = $dataBaik['jumlah'] ?? 0;
+        // A. Total Katalog Aset
+        if (!$isGlobal) $barangModel->where('kode_jenjang', $kodeJenjang);
+        $totalAset = $barangModel->countAllResults();
 
-        $dataRingan = $peralatanModel->byJenjang($kodeJenjang)->where('kondisi', 'Rusak Ringan')->selectSum('jumlah')->first();
-        $jmlRingan = $dataRingan['jumlah'] ?? 0;
+        // B. Total Lokasi / Ruangan
+        if (!$isGlobal) $lokasiModel->where('kode_jenjang', $kodeJenjang);
+        $totalLokasi = $lokasiModel->countAllResults();
 
-        $dataBerat = $peralatanModel->byJenjang($kodeJenjang)->where('kondisi', 'Rusak Berat')->selectSum('jumlah')->first();
-        $jmlBerat = $dataBerat['jumlah'] ?? 0;
+        // C. Valuasi Nilai Aset (Rp) - Sangat Penting untuk Finance
+        if (!$isGlobal) $barangModel->where('kode_jenjang', $kodeJenjang);
+        $dataNilai = $barangModel->selectSum('harga_perolehan')->first();
+        $totalNilaiAset = $dataNilai['harga_perolehan'] ?? 0;
+
+        // D. Kategori Aset Aktif
+        $totalKategori = $kategoriModel->countAllResults();
+
+        // ===============================
+        // 4. STATISTIK KONDISI FISIK ASET
+        // ===============================
+        
+        if (!$isGlobal) $barangModel->where('kode_jenjang', $kodeJenjang);
+        $jmlBaik = $barangModel->where('kondisi', 'Baik')->countAllResults();
+
+        if (!$isGlobal) $barangModel->where('kode_jenjang', $kodeJenjang);
+        $jmlRingan = $barangModel->where('kondisi', 'Rusak Ringan')->countAllResults();
+
+        if (!$isGlobal) $barangModel->where('kode_jenjang', $kodeJenjang);
+        $jmlBerat = $barangModel->where('kondisi', 'Rusak Berat')->countAllResults();
+
+        if (!$isGlobal) $barangModel->where('kode_jenjang', $kodeJenjang);
+        $jmlAfkir = $barangModel->where('kondisi', 'Afkir/Dihapus')->countAllResults();
 
         $kondisi = [
             'baik'   => $jmlBaik,
             'ringan' => $jmlRingan,
             'berat'  => $jmlBerat,
+            'afkir'  => $jmlAfkir
         ];
 
         // ===============================
-        // 6. KIRIM KE VIEW
+        // 5. TRANSAKSIONAL (LIVE TRACKING)
+        // ===============================
+        
+        // A. Peminjaman Aktif (Sedang diluar / telat dikembalikan)
+        $qPeminjaman = $peminjamanModel->getPeminjamanBuilder()
+                                       ->whereIn('aset_peminjaman.status', ['Dipinjam', 'Terlambat']);
+        if (!$isGlobal) {
+            $qPeminjaman->where('aset_barang.kode_jenjang', $kodeJenjang);
+        }
+        $peminjamanAktif = $qPeminjaman->countAllResults();
+
+        // B. Pemeliharaan Aktif (Aset sedang diservis / Maintenance)
+        $qPemeliharaan = $pemeliharaanModel->getPemeliharaanBuilder()
+                                           ->whereIn('aset_pemeliharaan.status', ['Direncanakan', 'Sedang Proses']);
+        if (!$isGlobal) {
+            $qPemeliharaan->where('aset_barang.kode_jenjang', $kodeJenjang);
+        }
+        $pemeliharaanAktif = $qPemeliharaan->countAllResults();
+
+        // C. Pengadaan / Proposal Belum Disetujui
+        $qPengadaan = $pengadaanModel->getPengadaanBuilder($isGlobal ? null : $kodeJenjang)
+                                     ->where('aset_pengadaan.status', 'Menunggu Approval');
+        $pengadaanPending = $qPengadaan->countAllResults();
+
+        // ===============================
+        // 6. RENDER KE VIEW (UI)
         // ===============================
         return view('sapras/dashboard', [
-            'title'       => 'Dashboard Statistik Sapras',
-            'summary'     => [
-                'total_tanah_m2'  => $totalTanah,
-                'total_gedung_m2' => $totalGedung,
-                'total_kapasitas' => $totalKapasitas,
-                'total_item'      => $totalItem,
+            'title'        => 'Dashboard Manajemen Aset Terpadu',
+            'kodeJenjang'  => $isGlobal ? 'GLOBAL' : $kodeJenjang,
+            'summary'      => [
+                'total_aset'         => $totalAset,
+                'total_lokasi'       => $totalLokasi,
+                'total_kategori'     => $totalKategori,
+                'total_nilai_aset'   => $totalNilaiAset,
+                'peminjaman_aktif'   => $peminjamanAktif,
+                'pemeliharaan_aktif' => $pemeliharaanAktif,
+                'pengadaan_pending'  => $pengadaanPending,
             ],
-            'count'       => $count,
-            'kondisi'     => $kondisi,
-            'kodeJenjang' => $kodeJenjang, // Untuk badge / label di view
+            'kondisi'      => $kondisi,
         ]);
     }
 }

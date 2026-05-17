@@ -11,8 +11,7 @@ use CodeIgniter\Exceptions\PageNotFoundException;
 
 /**
  * Controller Pegawai (Unified - Full Version)
- * Termasuk fitur: CRUD, Show Detail, Upload Dokumen, Filter & Pagination.
- * STATUS: FIXED V2 (Sync Foto Dokumen ke Profil Utama)
+ * STATUS: FIXED V4 (Sinkronisasi Filter Penunjang & Unit Yayasan)
  */
 class Pegawai extends BaseController
 {
@@ -57,18 +56,23 @@ class Pegawai extends BaseController
         $search      = $this->request->getGet('search');
         $perPage     = $this->request->getGet('per_page') ?? 10;
 
+        // Otorisasi: Admin Unit hanya bisa lihat unitnya sendiri
         if (!$isSuperAdmin) {
             $filterUnit = $userJenjang;
         }
         
-        $unitParam = (empty($filterUnit) || in_array(strtoupper($filterUnit), $this->globalIdentifiers)) ? null : $filterUnit;
+        // FIX: Pisahkan antara "Semua Unit" (null/kosong) dengan "Unit Yayasan/Pusat" (GLOBAL)
+        $unitParam = ($filterUnit === '' || $filterUnit === null) ? null : $filterUnit;
 
+        // FIX: Gunakan db->table langsung agar filter Penunjang bisa dieksekusi murni
+        $builder = $this->db->table('pegawai')->where('deleted_at', null);
+        
         if ($filterJenis === 'guru') {
-            $builder = $this->guruModel->builder(); 
+            $builder->where('jenis_pegawai', 'guru');
         } elseif ($filterJenis === 'staff') {
-            $builder = $this->karyawanModel->builder();
-        } else {
-            $builder = $this->db->table('pegawai')->where('deleted_at', null);
+            $builder->where('jenis_pegawai', 'staff');
+        } elseif ($filterJenis === 'penunjang') {
+            $builder->where('jenis_pegawai', 'penunjang');
         }
 
         if ($unitParam) {
@@ -109,10 +113,8 @@ class Pegawai extends BaseController
 
         $jenjangList = [];
         if ($isSuperAdmin) {
-            $allJenjangs = $this->jenjangModel->asArray()->where('status', 'aktif')->orderBy('urutan', 'ASC')->findAll();
-            $jenjangList = array_filter($allJenjangs, function($j) {
-                return !in_array(strtoupper($j['kode_jenjang']), $this->globalIdentifiers);
-            });
+            // FIX: Sertakan unit Yayasan/GLOBAL agar bisa dipilih di filter dropdown
+            $jenjangList = $this->jenjangModel->asArray()->where('status', 'aktif')->orderBy('urutan', 'ASC')->findAll();
         }
 
         $data = [
@@ -184,7 +186,7 @@ class Pegawai extends BaseController
         
         $filteredJenjangs = array_filter($allJenjangs, function($j) use ($isSuperAdmin, $userJenjang) {
             $kode = strtoupper($j['kode_jenjang']);
-            if (in_array($kode, $this->globalIdentifiers)) return false;
+            // FIX: Tidak perlu memblokir GLOBAL di form, karena Yayasan boleh merekrut staf
             return $isSuperAdmin || $kode === $userJenjang;
         });
 
@@ -204,13 +206,43 @@ class Pegawai extends BaseController
         $dataPost = $this->request->getPost();
         $targetModel = ($dataPost['jenis_pegawai'] == 'guru') ? $this->guruModel : $this->karyawanModel;
 
-        if (!$this->validate($targetModel->getValidationRules())) {
+        // --- VALIDASI CUSTOM DENGAN BAHASA INDONESIA ---
+        $rules = [
+            'kode_jenjang' => [
+                'rules'  => 'required',
+                'errors' => ['required' => 'Unit Penempatan wajib dipilih.']
+            ],
+            'nama_lengkap' => [
+                'rules'  => 'required|min_length[3]|max_length[100]',
+                'errors' => [
+                    'required'   => 'Nama Lengkap wajib diisi.',
+                    'min_length' => 'Nama Lengkap minimal 3 karakter.'
+                ]
+            ],
+            'nik' => [
+                'rules'  => 'required|numeric|exact_length[16]|is_unique[pegawai.nik]',
+                'errors' => [
+                    'required'     => 'NIK KTP wajib diisi.',
+                    'numeric'      => 'NIK harus berupa angka bulat.',
+                    'exact_length' => 'NIK harus tepat 16 digit angka.',
+                    'is_unique'    => 'NIK ini sudah terdaftar pada sistem.'
+                ]
+            ],
+            'email' => [
+                'rules'  => 'permit_empty|valid_email',
+                'errors' => [
+                    'valid_email' => 'Format email tidak valid. Pastikan menggunakan format yang benar (contoh: pegawai@sekolah.com).'
+                ]
+            ]
+        ];
+
+        if (!$this->validate($rules)) {
             return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
         }
 
         $userJenjang = strtoupper(session()->get('kode_jenjang') ?? 'GLOBAL');
         if (!in_array($userJenjang, $this->globalIdentifiers) && strtoupper($dataPost['kode_jenjang']) !== $userJenjang) {
-            return redirect()->back()->withInput()->with('error', 'Otoritas Ditolak: Unit tidak sesuai otoritas.');
+            return redirect()->back()->withInput()->with('error', 'Otoritas Ditolak: Anda tidak dapat mendaftarkan ke unit lain.');
         }
 
         // --- UPLOAD FOTO PROFIL (FORM UTAMA) ---
@@ -261,12 +293,13 @@ class Pegawai extends BaseController
             'foto'                => $namaFoto, 
         ];
 
-        if ($targetModel->insert($saveData)) {
+        // Skip validation karena kita sudah melakukan validasi secara manual di atas
+        if ($targetModel->skipValidation(true)->insert($saveData)) {
             $newId = $targetModel->getInsertID();
             return redirect()->to(base_url($this->redirectBaseUrl . '/edit/' . $newId))->with('success', 'Data berhasil disimpan. Silakan upload dokumen pendukung.');
         }
 
-        return redirect()->back()->withInput()->with('error', 'Gagal menyimpan data database.');
+        return redirect()->back()->withInput()->with('error', 'Gagal menyimpan data ke database.');
     }
 
     public function edit($id)
@@ -276,7 +309,7 @@ class Pegawai extends BaseController
 
         $userJenjang = strtoupper(session()->get('kode_jenjang') ?? 'GLOBAL');
         if (!in_array($userJenjang, $this->globalIdentifiers) && strtoupper($pegawai['kode_jenjang']) !== $userJenjang) {
-             return redirect()->back()->with('error', 'Akses ditolak: Unit berbeza.');
+             return redirect()->back()->with('error', 'Akses ditolak: Unit berbeda.');
         }
 
         $allJenjangs = $this->jenjangModel->asArray()->where('status', 'aktif')->orderBy('urutan', 'ASC')->findAll();
@@ -319,10 +352,30 @@ class Pegawai extends BaseController
         $targetModel = ($existing['jenis_pegawai'] == 'guru') ? $this->guruModel : $this->karyawanModel;
         $dataPost = $this->request->getPost();
 
+        // --- VALIDASI CUSTOM DENGAN BAHASA INDONESIA ---
         $rules = [
-            'nama_lengkap' => 'required|min_length[3]',
-            'nik'          => "required|numeric|exact_length[16]|is_unique[pegawai.nik,id,{$id}]",
-            'nip'          => "permit_empty|numeric|max_length[25]|is_unique[pegawai.nip,id,{$id}]",
+            'nama_lengkap' => [
+                'rules'  => 'required|min_length[3]|max_length[100]',
+                'errors' => [
+                    'required'   => 'Nama Lengkap wajib diisi.',
+                    'min_length' => 'Nama Lengkap minimal 3 karakter.'
+                ]
+            ],
+            'nik' => [
+                'rules'  => "required|numeric|exact_length[16]|is_unique[pegawai.nik,id,{$id}]",
+                'errors' => [
+                    'required'     => 'NIK KTP wajib diisi.',
+                    'numeric'      => 'NIK harus berupa angka bulat.',
+                    'exact_length' => 'NIK harus tepat 16 digit angka.',
+                    'is_unique'    => 'NIK ini sudah digunakan oleh pegawai lain.'
+                ]
+            ],
+            'email' => [
+                'rules'  => 'permit_empty|valid_email',
+                'errors' => [
+                    'valid_email' => 'Format email tidak valid. Pastikan menggunakan format yang benar (contoh: pegawai@sekolah.com).'
+                ]
+            ]
         ];
 
         if (!$this->validate($rules)) {
@@ -364,7 +417,7 @@ class Pegawai extends BaseController
             'status_aktif'        => $dataPost['status_aktif'] ?? 'aktif',
         ];
 
-        // --- UPLOAD FOTO PROFIL (FORM UTAMA) ---
+        // --- UPLOAD FOTO PROFIL ---
         $fileFoto = $this->request->getFile('foto');
         if ($fileFoto && $fileFoto->isValid() && !$fileFoto->hasMoved()) {
             $uploadPath = FCPATH . 'uploads/pegawai';

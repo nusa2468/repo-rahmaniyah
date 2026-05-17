@@ -10,16 +10,12 @@ class PengumumanModel extends Model
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
-
-    // Mengaktifkan Soft Deletes sesuai migrasi (deleted_at)
+    
     protected $useSoftDeletes   = true;
 
-    // Disesuaikan dengan field di Migration CreateCmsTables
-    // Perubahan: 'isi' -> 'konten', 'id_user' -> 'id_penulis'
     protected $allowedFields    = [
-        'kode_jenjang', 'judul', 'slug', 
-        'konten', 'status', 'tanggal_berakhir', 
-        'id_penulis', 
+        'kode_jenjang', 'judul', 'slug', 'konten', 'lampiran', 
+        'status', 'id_penulis', 'is_pinned',
         'created_at', 'updated_at', 'deleted_at'
     ];
 
@@ -29,30 +25,40 @@ class PengumumanModel extends Model
     protected $deletedField  = 'deleted_at';
 
     /**
-     * Mengambil pengumuman aktif dengan filter jenjang
-     * Menampilkan pengumuman yang statusnya published dan belum kadaluarsa
+     * Mengambil pengumuman dengan filter jenjang dan join author (id_penulis)
      */
-    public function getPengumumanWithAuthor($jenjang = null, $limit = 5)
+    public function getPengumumanWithAuthor($jenjang = null, $limit = 0)
     {
-        $builder = $this->select('pengumuman.*, users.fullname as author_fullname')
-                        ->join('users', 'users.id = pengumuman.id_penulis', 'left')
-                        ->where('pengumuman.status', 'published')
-                        ->groupStart() // Filter tanggal berakhir (jika ada)
-                            ->where('tanggal_berakhir >=', date('Y-m-d'))
-                            ->orWhere('tanggal_berakhir', null)
-                        ->groupEnd();
+        // PENTING: Gunakan $this->db->table(...) untuk isolasi Query
+        $builder = $this->db->table($this->table); 
+        
+        // FIX FATAL ERROR: Mengganti users.fullname menjadi users.nama_lengkap
+        $builder->select('pengumuman.*, users.username as author_name, users.nama_lengkap as author_fullname')
+                ->join('users', 'users.id = pengumuman.id_penulis', 'left')
+                ->groupStart()
+                    ->where('pengumuman.status', 'Published')
+                    ->orWhere('pengumuman.status', 'published')
+                ->groupEnd()
+                ->where('pengumuman.deleted_at', null);
 
         // Logic Filter Scope Jenjang
-        if ($jenjang && $jenjang !== 'Global') {
+        if ($jenjang && strtoupper($jenjang) !== 'GLOBAL') {
             $builder->groupStart()
                     ->where('pengumuman.kode_jenjang', $jenjang)
-                    ->orWhere('pengumuman.kode_jenjang', null) // Null = Global
+                    ->orWhere('pengumuman.kode_jenjang', null)
                     ->orWhere('pengumuman.kode_jenjang', 'Global')
+                    ->orWhere('pengumuman.kode_jenjang', 'GLOBAL')
                     ->groupEnd();
         }
 
-        return $builder->orderBy('pengumuman.created_at', 'DESC')
-                       ->findAll($limit);
+        $builder->orderBy('pengumuman.created_at', 'DESC');
+        
+        // Limit digunakan untuk Dashboard/Widget Landing Page
+        if ($limit > 0) {
+            $builder->limit($limit);
+        }
+
+        return $builder->get()->getResultArray();
     }
 
     /**
@@ -60,10 +66,18 @@ class PengumumanModel extends Model
      */
     public function getPengumumanBySlug($slug)
     {
-        return $this->select('pengumuman.*, users.fullname as author_fullname')
+        $builder = $this->db->table($this->table);
+
+        // FIX FATAL ERROR: Mengganti users.fullname menjadi users.nama_lengkap
+        return $builder->select('pengumuman.*, users.username as author_name, users.nama_lengkap as author_fullname')
                     ->join('users', 'users.id = pengumuman.id_penulis', 'left')
                     ->where('pengumuman.slug', $slug)
-                    ->where('pengumuman.status', 'published')
-                    ->first();
+                    ->groupStart()
+                        ->where('pengumuman.status', 'Published')
+                        ->orWhere('pengumuman.status', 'published')
+                    ->groupEnd()
+                    ->where('pengumuman.deleted_at', null)
+                    ->get()
+                    ->getRowArray();
     }
 }

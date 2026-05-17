@@ -6,6 +6,10 @@
     $docs = $dokumen ?? []; 
     $eduList = $pendidikan ?? []; 
     $careerList = $riwayat_kepegawaian ?? [];
+
+    // Deteksi Hak Akses
+    $sessionJenjang = strtoupper(session()->get('kode_jenjang') ?? 'GLOBAL');
+    $isSuperAdmin = in_array($sessionJenjang, ['GLOBAL', 'YAYASAN', 'PUSAT']);
 ?>
 
 <div class="container-fluid mb-6 px-4" x-data="{ subTab: 'docs' }">
@@ -91,15 +95,37 @@
                                 </div>
                             </div>
 
+                            <!-- FIX: UNIT PENEMPATAN (Dengan Proteksi Yayasan/Global) -->
                             <div class="md:col-span-2">
                                 <label class="label-req">Unit Kerja Penempatan</label>
-                                <select name="kode_jenjang" class="form-input" required>
-                                    <?php foreach ($jenjang_list as $j): $j = (array)$j; ?>
-                                        <option value="<?= $j['kode_jenjang'] ?>" <?= ($p['kode_jenjang'] ?? '') == $j['kode_jenjang'] ? 'selected' : '' ?>>
-                                            Unit <?= strtoupper($j['kode_jenjang']) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <?php if ($isSuperAdmin): ?>
+                                    <div class="relative">
+                                        <select name="kode_jenjang" class="form-input pl-4 pr-10 appearance-none uppercase" required>
+                                            <!-- Opsi Khusus Yayasan -->
+                                            <option value="GLOBAL" <?= strtoupper($p['kode_jenjang'] ?? '') === 'GLOBAL' ? 'selected' : '' ?>>
+                                                🏢 KANTOR YAYASAN (PUSAT)
+                                            </option>
+                                            
+                                            <!-- Looping Unit Akademik dari Database -->
+                                            <?php foreach ($jenjang_list as $j): $j = (array)$j; 
+                                                $val = strtoupper($j['kode_jenjang']);
+                                                if(in_array($val, ['GLOBAL', 'YAYASAN', 'PUSAT'])) continue;
+                                            ?>
+                                                <option value="<?= $val ?>" <?= strtoupper($p['kode_jenjang'] ?? '') === $val ? 'selected' : '' ?>>
+                                                    🏫 UNIT <?= $val ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <i class="fas fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
+                                    </div>
+                                    <p class="text-[9px] text-slate-400 mt-1 italic">*Tentukan lokasi kerja fisik pegawai / guru ini.</p>
+                                <?php else: ?>
+                                    <!-- Jika Admin Unit (SD/SMP), Unit dikunci ke Unitnya Sendiri -->
+                                    <input type="hidden" name="kode_jenjang" value="<?= esc($sessionJenjang) ?>">
+                                    <div class="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-500 uppercase flex items-center gap-2 cursor-not-allowed">
+                                        <i class="fas fa-lock text-slate-400"></i> Unit <?= esc($sessionJenjang) ?>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -178,13 +204,15 @@
                             </div>
 
                             <div>
-                                <label class="label">Jenis PTK / Jabatan</label>
+                                <label class="label">Jenis PTK / Tugas Utama</label>
                                 <select name="jenis_ptk" id="jenis_ptk" class="form-input bg-white"></select>
                             </div>
                             
+                            <!-- PERBAIKAN: Menyoroti Kolom Tugas Tambahan Berdasarkan Konsep Dapodik -->
                             <div>
-                                <label class="label">Tugas Tambahan</label>
-                                <input type="text" name="tugas_tambahan" value="<?= old('tugas_tambahan', $p['tugas_tambahan'] ?? '') ?>" class="form-input bg-white" placeholder="Wakasek / Koordinator / Pembina">
+                                <label class="label">Tugas Tambahan (Jabatan Struktural)</label>
+                                <input type="text" name="tugas_tambahan" value="<?= old('tugas_tambahan', $p['tugas_tambahan'] ?? '') ?>" class="form-input bg-white border-blue-200 focus:border-blue-500" placeholder="Kepala Sekolah / Wakasek / Wali Kelas">
+                                <p class="text-[9px] text-slate-400 mt-1 italic leading-tight">Bagi Guru yang memegang jabatan struktural sekolah, silakan ketik di kolom ini.</p>
                             </div>
 
                             <!-- INPUT FOTO -->
@@ -395,19 +423,46 @@
     /* Custom Scrollbar for better UI */
     .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+    [x-cloak] { display: none !important; }
 </style>
 
 <!-- SCRIPTS -->
 <script>
-    // Data Opsi Jabatan per Kategori
-    const optsGuru = ['Guru Mapel', 'Guru Kelas', 'Guru BK', 'Guru Pendamping', 'Kepala Sekolah'];
-    const optsStaff = ['Tenaga Administrasi', 'Laboran', 'Pustakawan', 'Operator Dapodik', 'Bendahara Unit'];
-    const optsPenunjang = ['Penjaga Sekolah', 'Keamanan (Satpam)', 'Petugas Kebersihan', 'Driver Yayasan'];
+    // PERBAIKAN: Menyesuaikan Data Opsi Jabatan per Kategori Berdasarkan Standar Dapodik/Sekolah
+    
+    // Guru (Pendidik) tidak memuat jabatan struktural sebagai "Jenis PTK". Struktural masuk ke "Tugas Tambahan"
+    const optsGuru = [
+        'Guru Kelas', 
+        'Guru Mata Pelajaran', 
+        'Guru Bimbingan Konseling (BK)', 
+        'Guru Pendamping Khusus (GPK)', 
+        'Guru TIK/Informatika'
+    ];
+    
+    // Staf/Tendik dapat mencakup Pimpinan Yayasan
+    const optsStaff = [
+        'Pengurus Yayasan (Ketua/Direktur)', 
+        'Manajer / Kepala Divisi',
+        'Staf Yayasan', 
+        'HRD Yayasan', 
+        'Keuangan / Akunting',
+        'Tenaga Administrasi (TU)', 
+        'Laboran', 
+        'Pustakawan', 
+        'Operator Dapodik', 
+        'Bendahara Unit'
+    ];
+    
+    const optsPenunjang = [
+        'Penjaga Sekolah', 
+        'Keamanan (Satpam)', 
+        'Petugas Kebersihan', 
+        'Driver Yayasan'
+    ];
     
     const currentJenisPtk = "<?= $p['jenis_ptk'] ?? '' ?>";
 
     function toggleForm() {
-        // MENGAMBIL NILAI RADIO BUTTON DENGAN QUERYSELECTOR (FIXED)
         const selectedRadio = document.querySelector('input[name="jenis_pegawai"]:checked');
         const jenis = selectedRadio ? selectedRadio.value : 'guru';
         

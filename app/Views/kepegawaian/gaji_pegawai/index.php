@@ -30,7 +30,7 @@
         <div>
             <nav class="flex mb-3">
                 <ol class="inline-flex items-center space-x-1 md:space-x-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
-                    <li><a href="<?= base_url('app/kepegawaian/dashboard') ?>" class="hover:text-indigo-600 transition-colors">KEPEGAWAIAN</a></li>
+                    <li><a href="<?= base_url('app/kepegawaian') ?>" class="hover:text-indigo-600 transition-colors">KEPEGAWAIAN</a></li>
                     <li><i class="fas fa-chevron-right text-[7px] opacity-50 mx-2"></i></li>
                     <li class="text-slate-600 italic">PAYROLL SETTINGS</li>
                 </ol>
@@ -69,27 +69,56 @@
         </a>
     </div>
 
+    <!-- ALERT HANDLERS -->
+    <?php if (session()->getFlashdata('success')) : ?>
+        <div class="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border-l-4 border-emerald-500 p-4 shadow-sm flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-check-circle text-emerald-500 text-lg"></i>
+                <span class="text-sm font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-tight"><?= session()->getFlashdata('success') ?></span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-emerald-500 hover:text-emerald-700"><i class="fas fa-times"></i></button>
+        </div>
+    <?php endif ?>
+    <?php if (session()->getFlashdata('message')) : ?>
+        <div class="rounded-xl bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-4 shadow-sm flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-info-circle text-blue-500 text-lg"></i>
+                <span class="text-sm font-bold text-blue-800 dark:text-blue-300 uppercase tracking-tight"><?= session()->getFlashdata('message') ?></span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-blue-500 hover:text-blue-700"><i class="fas fa-times"></i></button>
+        </div>
+    <?php endif ?>
+    <?php if (session()->getFlashdata('error')) : ?>
+        <div class="rounded-xl bg-rose-50 dark:bg-rose-900/20 border-l-4 border-rose-500 p-4 shadow-sm flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-exclamation-circle text-rose-500 text-lg"></i>
+                <span class="text-sm font-bold text-rose-800 dark:text-rose-300 uppercase tracking-tight"><?= session()->getFlashdata('error') ?></span>
+            </div>
+            <button onclick="this.parentElement.remove()" class="text-rose-500 hover:text-rose-700"><i class="fas fa-times"></i></button>
+        </div>
+    <?php endif ?>
+
     <!-- STATS CARDS -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-indigo-600 rounded-3xl shadow-xl p-6 text-white relative overflow-hidden group border-b-4 border-indigo-900">
             <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Estimasi Pengeluaran</p>
-            <h3 class="text-2xl font-black mt-2 italic">Rp <?= number_format(($stats->est_pendapatan - $stats->est_potongan), 0, ',', '.') ?></h3>
+            <h3 class="text-2xl font-black mt-2 italic">Rp <?= number_format((($stats->est_pendapatan ?? 0) - ($stats->est_potongan ?? 0)), 0, ',', '.') ?></h3>
             <p class="text-[9px] font-bold mt-2 opacity-60 uppercase tracking-wide">Total THP Bulan Ini</p>
             <i class="fas fa-wallet absolute -right-4 -bottom-4 text-white/10 text-7xl group-hover:scale-110 transition-transform"></i>
         </div>
         <div class="bg-emerald-600 rounded-3xl shadow-xl p-6 text-white relative overflow-hidden group border-b-4 border-emerald-800">
             <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Total Pendapatan</p>
-            <h3 class="text-2xl font-black mt-2 italic">Rp <?= number_format($stats->est_pendapatan, 0, ',', '.') ?></h3>
+            <h3 class="text-2xl font-black mt-2 italic">Rp <?= number_format($stats->est_pendapatan ?? 0, 0, ',', '.') ?></h3>
             <i class="fas fa-arrow-up absolute -right-4 -bottom-4 text-white/10 text-7xl"></i>
         </div>
         <div class="bg-rose-600 rounded-3xl shadow-xl p-6 text-white relative overflow-hidden group border-b-4 border-rose-800">
             <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Total Potongan</p>
-            <h3 class="text-2xl font-black mt-2 italic">Rp <?= number_format($stats->est_potongan, 0, ',', '.') ?></h3>
+            <h3 class="text-2xl font-black mt-2 italic">Rp <?= number_format($stats->est_potongan ?? 0, 0, ',', '.') ?></h3>
             <i class="fas fa-arrow-down absolute -right-4 -bottom-4 text-white/10 text-7xl"></i>
         </div>
         <div class="bg-slate-800 rounded-3xl shadow-xl p-6 text-white relative overflow-hidden group border-b-4 border-slate-950">
-            <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Penerima Gaji</p>
-            <h3 class="text-2xl font-black mt-2 italic"><?= number_format($stats->total_pegawai) ?> Pegawai</h3>
+            <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Penerima Gaji (Page)</p>
+            <h3 class="text-2xl font-black mt-2 italic"><?= number_format($stats->total_pegawai ?? 0) ?> Pegawai</h3>
             <i class="fas fa-users absolute -right-4 -bottom-4 text-white/10 text-7xl"></i>
         </div>
     </div>
@@ -98,16 +127,22 @@
     <div class="bg-white dark:bg-slate-800 rounded-[2.5rem] border-2 border-slate-100 dark:border-white/5 shadow-xl overflow-hidden">
         
         <!-- TOOLBAR -->
-        <div class="bg-slate-50 dark:bg-white/5 px-8 py-6 border-b border-slate-100 dark:border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div class="flex items-center gap-3">
-                <div class="flex p-1 bg-slate-200 dark:bg-slate-900 rounded-xl shadow-inner border border-slate-300 dark:border-slate-700">
+        <div class="bg-slate-50 dark:bg-white/5 px-8 py-6 border-b border-slate-100 dark:border-white/10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+            
+            <!-- TABS JENIS PEGAWAI DENGAN PENUNJANG -->
+            <div class="flex items-center gap-3 overflow-x-auto custom-scrollbar pb-2 xl:pb-0">
+                <div class="flex p-1 bg-slate-200 dark:bg-slate-900 rounded-xl shadow-inner border border-slate-300 dark:border-slate-700 min-w-max">
                     <a href="?tipe=guru&unit=<?= esc($current_unit) ?>&bulan=<?= $filterBulan ?>&tahun=<?= $filterTahun ?>" 
-                       class="px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all <?= $currentTipe === 'guru' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-800' ?>">
-                        TENAGA PENDIDIK
+                       class="px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all <?= $currentTipe === 'guru' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-800' ?>">
+                        GURU / PENDIDIK
                     </a>
                     <a href="?tipe=staff&unit=<?= esc($current_unit) ?>&bulan=<?= $filterBulan ?>&tahun=<?= $filterTahun ?>" 
-                       class="px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all <?= $currentTipe === 'staff' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-800' ?>">
-                        KARYAWAN
+                       class="px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all <?= $currentTipe === 'staff' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-800' ?>">
+                        STAF / TENDIK
+                    </a>
+                    <a href="?tipe=penunjang&unit=<?= esc($current_unit) ?>&bulan=<?= $filterBulan ?>&tahun=<?= $filterTahun ?>" 
+                       class="px-5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all <?= $currentTipe === 'penunjang' ? 'bg-white text-indigo-600 shadow-md' : 'text-slate-500 hover:text-slate-800' ?>">
+                        PENUNJANG
                     </a>
                 </div>
             </div>
@@ -120,9 +155,13 @@
                     <select name="unit" onchange="this.form.submit()" 
                             class="pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-black uppercase focus:border-indigo-500 outline-none appearance-none cursor-pointer <?= !$isGlobalUser ? 'opacity-50 cursor-not-allowed bg-slate-100' : 'hover:border-indigo-300' ?>"
                             <?= !$isGlobalUser ? 'disabled' : '' ?>>
-                        <option value="GLOBAL">SELURUH UNIT</option>
+                        
+                        <option value="" <?= ($current_unit === '' || $current_unit === null) ? 'selected' : '' ?>>🌐 SEMUA UNIT</option>
+                        <option value="GLOBAL" <?= $current_unit === 'GLOBAL' ? 'selected' : '' ?>>🏢 KANTOR YAYASAN</option>
+                        
                         <?php foreach($jenjang_list as $j): ?>
-                            <option value="<?= $j['kode_jenjang'] ?>" <?= $current_unit == $j['kode_jenjang'] ? 'selected' : '' ?>>UNIT <?= $j['kode_jenjang'] ?></option>
+                            <?php if(in_array(strtoupper($j['kode_jenjang']), ['GLOBAL','YAYASAN'])) continue; ?>
+                            <option value="<?= $j['kode_jenjang'] ?>" <?= $current_unit == $j['kode_jenjang'] ? 'selected' : '' ?>>🏫 UNIT <?= $j['kode_jenjang'] ?></option>
                         <?php endforeach; ?>
                     </select>
                     <i class="fas fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[8px]"></i>
@@ -153,6 +192,7 @@
             </form>
         </div>
 
+        <!-- TABLE DATA -->
         <div class="overflow-x-auto custom-scrollbar">
             <table class="w-full text-left border-collapse">
                 <thead>
@@ -190,10 +230,12 @@
                                                 } elseif (!empty($row['nik'])) { 
                                                     $nomorInduk = $row['nik']; $labelInduk = 'NIK'; 
                                                 }
+                                                
+                                                $labelUnit = in_array(strtoupper($row['kode_jenjang']), ['GLOBAL','YAYASAN','PUSAT']) ? 'YAYASAN' : $row['kode_jenjang'];
                                             ?>
                                             <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest"><?= $labelInduk ?>: <?= esc($nomorInduk) ?></span>
                                             <span class="text-slate-300">•</span>
-                                            <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[8px] font-black rounded uppercase">Unit <?= esc($row['kode_jenjang']) ?></span>
+                                            <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[8px] font-black rounded uppercase">Unit <?= esc($labelUnit) ?></span>
                                         </div>
                                     </div>
                                 </td>
@@ -263,6 +305,7 @@
                             <select name="tipe" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-bold uppercase focus:border-emerald-500 transition-all outline-none">
                                 <option value="guru" <?= $currentTipe == 'guru' ? 'selected' : '' ?>>GURU / PENDIDIK</option>
                                 <option value="staff" <?= $currentTipe == 'staff' ? 'selected' : '' ?>>STAFF / TENDIK</option>
+                                <option value="penunjang" <?= $currentTipe == 'penunjang' ? 'selected' : '' ?>>PENUNJANG (SATPAM/CS)</option>
                             </select>
                         </div>
                         
@@ -270,9 +313,11 @@
                         <div class="space-y-1.5">
                             <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unit Kerja</label>
                             <select name="unit" class="w-full px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-xs font-bold uppercase focus:border-emerald-500 transition-all outline-none" <?= !$isGlobalUser ? 'readonly' : '' ?>>
-                                <option value="GLOBAL">SEMUA UNIT</option>
+                                <option value="" <?= ($current_unit === '' || $current_unit === null) ? 'selected' : '' ?>>🌐 SEMUA UNIT</option>
+                                <option value="GLOBAL" <?= $current_unit === 'GLOBAL' ? 'selected' : '' ?>>🏢 YAYASAN (PUSAT)</option>
                                 <?php foreach($jenjang_list as $j): ?>
-                                    <option value="<?= $j['kode_jenjang'] ?>" <?= $sessionUnit == $j['kode_jenjang'] ? 'selected' : '' ?>>UNIT <?= $j['kode_jenjang'] ?></option>
+                                    <?php if(in_array(strtoupper($j['kode_jenjang']), ['GLOBAL','YAYASAN'])) continue; ?>
+                                    <option value="<?= $j['kode_jenjang'] ?>" <?= $current_unit == $j['kode_jenjang'] ? 'selected' : '' ?>>🏫 UNIT <?= $j['kode_jenjang'] ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>

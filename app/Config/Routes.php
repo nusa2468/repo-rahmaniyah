@@ -853,59 +853,78 @@ $routes->group('app', ['filter' => 'auth', 'namespace' => 'App\Controllers'], st
         $routes->get('grades/sync/(:num)', 'GradeController::syncToAcademic/$1');
     });
    
-    // --- SAPRAS (SINKRONISASI 100% - FIX 404 UPDATE) ---
+    // --- SAPRAS (MANAJEMEN ASET ENTERPRISE 1.0 - FIX 404) ---
     $routes->group('sapras', ['namespace' => 'App\Controllers\Sapras'], static function ($routes) {
         $routes->get('/', 'DashboardController::index');
         $routes->get('dashboard', 'DashboardController::index');
-        // Sub-Modul: Tanah
-        $routes->group('tanah', static function ($routes) {
-            $routes->get('/', 'TanahController::index');
-            $routes->get('new', 'TanahController::new');
-            $routes->get('edit/(:num)', 'TanahController::edit/$1');
-            $routes->post('create', 'TanahController::create'); // Target Form Baru
-            $routes->match(['post', 'put'], 'update/(:num)', 'TanahController::update/$1'); // Target Form Edit (SOLUSI 404)
-            $routes->post('save', 'TanahController::save'); // Legacy Fallback
-            $routes->get('delete/(:num)', 'TanahController::delete/$1');
+        
+        // 1. Sub-Modul: Kategori Aset
+        $routes->group('kategori', static function ($routes) {
+            $routes->get('/', 'KategoriAset::index');
+            $routes->get('new', 'KategoriAset::new');
+            $routes->get('edit/(:num)', 'KategoriAset::edit/$1');
+            $routes->post('save', 'KategoriAset::save');
+            $routes->post('save/(:num)', 'KategoriAset::save/$1');
+            $routes->get('delete/(:num)', 'KategoriAset::delete/$1');
         });
-        // Sub-Modul: Gedung
-        $routes->group('gedung', static function ($routes) {
-            $routes->get('/', 'GedungController::index');
-            $routes->get('new', 'GedungController::new');
-            $routes->get('edit/(:num)', 'GedungController::edit/$1');
-            $routes->post('create', 'GedungController::create');
-            $routes->match(['post', 'put'], 'update/(:num)', 'GedungController::update/$1');
-            $routes->post('save', 'GedungController::save'); // Legacy Fallback
-            $routes->get('delete/(:num)', 'GedungController::delete/$1');
+
+        // 2. Sub-Modul: Lokasi Aset
+        $routes->group('lokasi', static function ($routes) {
+            $routes->get('/', 'LokasiAset::index');
+            $routes->get('new', 'LokasiAset::new');
+            $routes->get('edit/(:num)', 'LokasiAset::edit/$1');
+            $routes->post('save', 'LokasiAset::save');
+            $routes->post('save/(:num)', 'LokasiAset::save/$1');
+            $routes->get('delete/(:num)', 'LokasiAset::delete/$1');
         });
-        // Sub-Modul: Ruangan
-        $routes->group('ruangan', static function ($routes) {
-            $routes->get('/', 'RuanganController::index');
-            $routes->get('new', 'RuanganController::new');
-            $routes->get('edit/(:num)', 'RuanganController::edit/$1');
-            $routes->post('create', 'RuanganController::create');
-            $routes->match(['post', 'put'], 'update/(:num)', 'RuanganController::update/$1');
-            $routes->post('save', 'RuanganController::save'); // Legacy Fallback
-            $routes->get('delete/(:num)', 'RuanganController::delete/$1');
+
+        // 3. Sub-Modul: Barang Aset (Katalog Master)
+        $routes->group('barang', static function ($routes) {
+            $routes->get('/', 'BarangAset::index');
+            $routes->get('new', 'BarangAset::new');
+            $routes->get('edit/(:num)', 'BarangAset::edit/$1');
+            $routes->post('save', 'BarangAset::save');
+            $routes->post('save/(:num)', 'BarangAset::save/$1');
+            $routes->get('delete/(:num)', 'BarangAset::delete/$1');
+            
+            // --- FITUR BARU: CETAK LABEL & LAPORAN ---
+            $routes->get('print-label/(:num)', 'BarangAset::printLabel/$1');
+            $routes->get('print-report', 'BarangAset::printReport');
         });
-        // Sub-Modul: Peralatan
-        $routes->group('peralatan', static function ($routes) {
-            $routes->get('/', 'PeralatanController::index');
-            $routes->get('new', 'PeralatanController::new');
-            $routes->get('edit/(:num)', 'PeralatanController::edit/$1');
-            $routes->post('create', 'PeralatanController::create');
-            $routes->match(['post', 'put'], 'update/(:num)', 'PeralatanController::update/$1');
-            $routes->post('save', 'PeralatanController::save'); // Legacy Fallback
-            $routes->get('delete/(:num)', 'PeralatanController::delete/$1');
+
+        // 4. Sub-Modul: Pengadaan Aset (Requisition)
+        $routes->group('pengadaan', static function ($routes) {
+            $routes->get('/', 'PengadaanAset::index');
+            $routes->get('new', 'PengadaanAset::new');
+            $routes->get('edit/(:num)', 'PengadaanAset::edit/$1');
+            $routes->post('save', 'PengadaanAset::save');
+            $routes->post('save/(:num)', 'PengadaanAset::save/$1');
+            $routes->get('delete/(:num)', 'PengadaanAset::delete/$1');
         });
-        // Sub-Modul: Inventaris
-        $routes->group('inventaris', static function ($routes) {
-            $routes->get('/', 'InventarisController::index');
-            $routes->get('new', 'InventarisController::new');
-            $routes->get('edit/(:num)', 'InventarisController::edit/$1');
-            $routes->post('create', 'InventarisController::create');
-            $routes->match(['post', 'put'], 'update/(:num)', 'InventarisController::update/$1');
-            $routes->post('save', 'InventarisController::save'); // Legacy Fallback
-            $routes->get('delete/(:num)', 'InventarisController::delete/$1');
+
+        // 5. Sub-Modul: Peminjaman Aset (Logistik)
+        $routes->group('peminjaman', static function ($routes) {
+            $routes->get('/', 'PeminjamanAset::index');
+            $routes->get('new', 'PeminjamanAset::new');
+            $routes->get('edit/(:num)', 'PeminjamanAset::edit/$1');
+            $routes->post('save', 'PeminjamanAset::save');
+            $routes->post('save/(:num)', 'PeminjamanAset::save/$1');
+            $routes->get('delete/(:num)', 'PeminjamanAset::delete/$1');
+        });
+
+        // 6. Sub-Modul: Pemeliharaan Aset (Servis)
+        $routes->group('pemeliharaan', static function ($routes) {
+            $routes->get('/', 'PemeliharaanAset::index');
+            $routes->get('new', 'PemeliharaanAset::new');
+            $routes->get('edit/(:num)', 'PemeliharaanAset::edit/$1');
+            $routes->post('save', 'PemeliharaanAset::save');
+            $routes->post('save/(:num)', 'PemeliharaanAset::save/$1');
+            $routes->get('delete/(:num)', 'PemeliharaanAset::delete/$1');
+
+            // --- FITUR BARU: CETAK LABEL, LAPORAN & RIWAYAT PEMELIHARAAN ---
+            $routes->get('print-label/(:num)', 'PemeliharaanAset::printLabel/$1');
+            $routes->get('print-report', 'PemeliharaanAset::printReport');
+            $routes->get('print-riwayat/(:num)', 'PemeliharaanAset::printRiwayat/$1'); // <--- TAMBAHKAN BARIS INI
         });
     });
     
@@ -922,7 +941,7 @@ $routes->group('app', ['filter' => 'auth', 'namespace' => 'App\Controllers'], st
         $routes->get('delete/(:num)', 'Kerjasama::delete/$1'); // Hapus Data & File
     });
 
-     // --- KEPEGAWAIAN (KARYAWAN & GURU) ---
+    // --- KEPEGAWAIAN (KARYAWAN & GURU) ---
     // Namespace: App\Controllers\Kepegawaian
     $routes->group('kepegawaian', ['namespace' => 'App\Controllers\Kepegawaian'], static function ($routes) {
         $routes->get('/', 'DashboardKepegawaianController::index');
@@ -948,6 +967,10 @@ $routes->group('app', ['filter' => 'auth', 'namespace' => 'App\Controllers'], st
             
             // Alur 4: Real-time Tap Terminal Simulator (Otomatis Check-in/Out)
             $routes->post('prosesTap', 'AbsensiPegawaiController::prosesTap');
+            
+            // --- FIX 404: TAMBAHKAN RUTE ABSEN ONLINE ---
+            // Alur 5: Absen Online Kamera & GPS
+            $routes->post('prosesOnline', 'AbsensiPegawaiController::prosesOnline');
             
             // Rekapitulasi (Opsional)
             $routes->get('rekap', 'AbsensiPegawaiController::rekap');
@@ -979,9 +1002,16 @@ $routes->group('app', ['filter' => 'auth', 'namespace' => 'App\Controllers'], st
         $routes->get('/', 'Kelembagaan::index');
         $routes->post('update', 'Kelembagaan::update');
     });
-     // --- MODUL PENGATURAN (SISTEM & AKSES) ---
+    
+    // --- MODUL PENGATURAN (SISTEM & AKSES) ---
     $routes->group('pengaturan', ['namespace' => 'App\Controllers\Pengaturan'], static function ($routes) {
         
+    $routes->get('/', 'Pengaturan::index');
+        
+        // --- FITUR BARU: KONFIGURASI SAAS & UMUM ---
+        $routes->get('umum', 'UmumSekolah::index');
+        $routes->post('umum/update', 'UmumSekolah::update');
+
         // Sub-Modul: Hak Akses (Roles)
         $routes->group('hak_akses', static function ($routes) {
             $routes->get('/', 'HakAkses::index');              

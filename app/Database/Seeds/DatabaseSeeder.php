@@ -17,7 +17,6 @@ class DatabaseSeeder extends Seeder
         $this->db->query('SET FOREIGN_KEY_CHECKS=0');
 
         // 2. Daftar Tabel untuk dibersihkan (Urutan: Anak/Detail -> Induk/Master)
-        // PERBAIKAN: 'mata_pelajaran' dan 'kurikulum' DIHAPUS dari daftar ini
         $tables = [
             // Modul E-Learning
             'el_submissions', 'elearning_comments', 'elearning_posts', 'el_quiz_grades',
@@ -26,8 +25,11 @@ class DatabaseSeeder extends Seeder
             // Modul Pembelajaran
             'pembelajaran_evaluasi_belajar', 'pembelajaran_bank_soal', 'pembelajaran_bahan_ajar', 'pembelajaran_rpp', 'pembelajaran_silabus',
             
-            // Modul Sapras
-            'sapras_inventaris', 'sapras_peralatan', 'sapras_ruangan', 'sapras_gedung', 'sapras_tanah',
+            // ==============================================================================
+            // PERBAIKAN: Modul Manajemen Aset (Pengganti Modul Sapras Lama)
+            // ==============================================================================
+            'aset_pemeliharaan', 'aset_peminjaman', 'aset_pengadaan', 'aset_barang', 'aset_lokasi', 'aset_kategori',
+            // ==============================================================================
             
             // Modul Keuangan
             'anggaran_unit', 'pengeluaran', 'kategori_anggaran', 'pembayaran', 'tagihan', 'jenis_pembayaran',
@@ -100,7 +102,13 @@ class DatabaseSeeder extends Seeder
         $this->call('KalenderPendidikanSeeder');
         $this->call('PegawaiSeeder'); 
         $this->call('PegawaiDetailSeeder'); 
-        $this->call('SaprasSeeder');
+        
+        // ==============================================================================
+        // AKTIFASI SEEDER ASET
+        // ==============================================================================
+        $this->call('ManajemenAsetSeeder');
+        // ==============================================================================
+        
         $this->call('SiswaSeeder'); 
         $this->call('KeuanganSeeder');
         $this->call('AcademicDataSeeder');
