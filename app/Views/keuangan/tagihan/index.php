@@ -90,11 +90,19 @@
             </div>
         </div>
 
-        <!-- --- MODUL NAVIGATION TABS --- -->
+                <!-- --- MODUL NAVIGATION TABS --- -->
         <?php if(isset($navigation)): ?>
         <div class="mt-6 overflow-x-auto pb-1 scrollbar-hide max-w-screen-2xl mx-auto">
             <div class="inline-flex p-1 bg-slate-200/60 rounded-xl border border-slate-200/60">
                 <?php foreach($navigation as $key => $nav): 
+                    
+                    // ========================================================
+                    // FIX: SEMBUNYIKAN TAB AKUNTANSI SEMENTARA WAKTU (STRATEGI)
+                    // ========================================================
+                    if (strtolower($key) === 'akuntansi' || strtolower($nav['label']) === 'akuntansi') {
+                        continue;
+                    }
+
                     $isActive = ($key === 'tagihan'); 
                     $activeClass = $isActive 
                         ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-black/5' 

@@ -3,7 +3,7 @@
  * Sidebar Partial (APPPATH/Views/layout/_partials/sidebar.php)
  * UI: Tailwind CSS v4 + Alpine.js
  * Logic: Full Role & Unit Based Filtering
- * Update: Penambahan Modul Diskusi (Diarahkan ke Dashboard jika kosong)
+ * Update: Penambahan Menu "Akuntansi Yayasan PRO" (Maha Karya Teaser)
  */
 
 helper('menu'); // Mengaktifkan pengecekan akses menu
@@ -50,6 +50,7 @@ $portalModules = ['portal'];
 $masterDataModules = ['masterdata', 'jenjang','identitas','organisasi', 'jabatan','pegawai', 'siswa', 'matapelajaran', 'kelas', 'tahunajaran', 'kurikulum', 'jenispembayaran', 'komponen-gaji'];
 $ppdbModules = ['ppdb', 'psb', 'affiliate'];
 $keuanganModules = ['keuangan', 'tagihan', 'laporankeuangan', 'pembayaran', 'pengeluaran', 'budget'];
+$akuntansiModules = ['akuntansi']; // Tambahan Modul Akuntansi Pro
 $akademikModules = ['akademik', 'kalender', 'jadwalpelajaran', 'absensi-siswa', 'absensi-otomatis', 'nilai', 'rapor', 'ijazah', 'kenaikan-kelas']; 
 $kesiswaanModules = ['kesiswaan', 'osis', 'kesiswaan-report', 'ekskul', 'alumni']; 
 $kepegawaianModules = ['kepegawaian', 'absensi-guru', 'absensi-guru-manual', 'gaji-guru', 'absensi-karyawan', 'absensi-karyawan-manual', 'gaji-karyawan'];
@@ -81,7 +82,7 @@ $getSubLinkClass = function($isActive) {
 $initialMenu = '';
 if (in_array($currentModule, $masterDataModules)) $initialMenu = 'master';
 elseif (in_array($currentModule, $ppdbModules)) $initialMenu = 'ppdb';
-elseif (in_array($currentModule, $keuanganModules)) $initialMenu = 'keuangan';
+elseif (in_array($currentModule, array_merge($keuanganModules, $akuntansiModules))) $initialMenu = 'keuangan';
 elseif (in_array($currentModule, $akademikModules)) $initialMenu = 'akademik';
 elseif (in_array($currentModule, $kesiswaanModules)) $initialMenu = 'kesiswaan';
 elseif (in_array($currentModule, $kepegawaianModules)) $initialMenu = 'kepegawaian';
@@ -241,7 +242,7 @@ elseif (in_array($currentModule, $portalModules)) $initialMenu = 'portal';
         <?php endif; ?>
 
         <!-- SDM & FINANCE -->
-        <?php if (check_menu_access(['superadmin', 'admin', 'bendahara'])): ?>
+        <?php if (check_menu_access(['superadmin', 'admin', 'bendahara', 'yayasan'])): ?>
         <div>
             <p class="px-4 mb-2 text-[10px] font-black text-gray-600 uppercase tracking-[0.2em]">SDM & Finance</p>
             
@@ -256,7 +257,7 @@ elseif (in_array($currentModule, $portalModules)) $initialMenu = 'portal';
                 </a>
             </div>
 
-            <!-- KEUANGAN -->
+            <!-- KEUANGAN OPERASIONAL -->
             <div class="space-y-1 mt-1">
                 <a href="<?= base_url('app/keuangan/dashboard') ?>" 
                    class="<?= $getLinkClass(in_array($currentModule, $keuanganModules)) ?> w-full flex justify-between">
@@ -266,6 +267,21 @@ elseif (in_array($currentModule, $portalModules)) $initialMenu = 'portal';
                     </span>
                 </a>
             </div>
+
+            <!-- AKUNTANSI YAYASAN PRO (MAHA KARYA TEASER) -->
+            <?php if (check_menu_access(['superadmin', 'yayasan'])): // Hanya Yayasan & Superadmin yang bisa melihat menu ini ?>
+            <div class="space-y-1 mt-1">
+                <a href="<?= base_url('app/akuntansi') ?>" 
+                   class="<?= $getLinkClass(in_array($currentModule, $akuntansiModules)) ?> w-full flex justify-between items-center relative overflow-hidden group border border-transparent hover:border-amber-500/30">
+                    <div class="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/0 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <span class="flex items-center relative z-10">
+                        <i class="fas fa-landmark w-5 text-center mr-3 text-amber-500 group-hover:text-amber-400 drop-shadow-sm"></i>
+                        <span class="text-amber-500 font-bold group-hover:text-amber-400 tracking-wide drop-shadow-sm">Akuntansi Yayasan</span>
+                    </span>
+                    <span class="relative z-10 px-2 py-0.5 rounded-md text-[8px] font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/20 border border-amber-400/50 uppercase tracking-widest">PRO</span>
+                </a>
+            </div>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 

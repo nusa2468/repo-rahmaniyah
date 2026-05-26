@@ -7,12 +7,17 @@ use App\Models\Keuangan\TagihanModel;
 use App\Models\Keuangan\PembayaranModel;
 use App\Models\SiswaModel;
 use App\Models\SettingsModel;     // Untuk Kop Surat Cetak
-use App\Models\JenjangModel;      // ADDED: Untuk Dropdown Unit
-use App\Models\HakAksesModel;     // ADDED: Untuk Security Anti-Bocor
+use App\Models\JenjangModel;      // Untuk Dropdown Unit
+use App\Models\HakAksesModel;     // Untuk Security Anti-Bocor
+
+// Import Model Akuntansi untuk Stealth Accounting (Auto-Jurnal)
+use App\Models\Akuntansi\AkuntansiJurnalModel;
+use App\Models\Akuntansi\AkuntansiJurnalDetailModel;
+use App\Models\Akuntansi\AkuntansiCoaModel;
 
 /**
  * Controller untuk mengelola transaksi pembayaran siswa.
- * Disinkronkan dengan TagihanController (Scope Unit + Pagination + Navigasi).
+ * Terintegrasi penuh dengan Buku Besar Akuntansi (Stealth Accounting) & Fitur Tutup Buku.
  */
 class PembayaranController extends BaseController
 {
@@ -20,25 +25,24 @@ class PembayaranController extends BaseController
     protected $pembayaranModel;
     protected $siswaModel;
     protected $settingsModel;
-    protected $jenjangModel;    // ADDED
-    protected $hakAksesModel;   // ADDED
+    protected $jenjangModel;
+    protected $hakAksesModel;
     protected $db;
 
     public function __construct()
     {
-        helper(['form', 'url', 'number']);
+        helper(['form', 'url', 'number', 'text']);
         $this->tagihanModel     = new TagihanModel();
         $this->pembayaranModel  = new PembayaranModel();
         $this->siswaModel       = new SiswaModel();
         $this->settingsModel    = new SettingsModel();
-        $this->jenjangModel     = new JenjangModel();    // Instansiasi
-        $this->hakAksesModel    = new HakAksesModel();   // Instansiasi
+        $this->jenjangModel     = new JenjangModel();
+        $this->hakAksesModel    = new HakAksesModel();
         $this->db               = \Config\Database::connect();
     }
 
     /**
      * Helper: Cek Status Superadmin (100% Dinamis via Database)
-     * Sama seperti di Dashboard & Tagihan Controller
      */
     private function checkSuperAdmin()
     {
@@ -50,6 +54,7 @@ class PembayaranController extends BaseController
         if (in_array($userUnit, ['GLOBAL', 'YAYASAN', 'ROOT', 'ALL'])) {
             return true;
         } 
+        
         // Cek 2: Konfigurasi Role di Database
         $roleData = $this->hakAksesModel->where('name', $userRole)->first();
         if ($roleData) {
@@ -63,8 +68,19 @@ class PembayaranController extends BaseController
     }
 
     /**
+     * Helper: Mendapatkan Tanggal Kunci (Tutup Buku) untuk Audit Trail
+     */
+    private function getLockDate($kodeJenjang)
+    {
+        $settings = $this->settingsModel->getSettingsAsArray($kodeJenjang);
+        if (empty($settings['lock_date_keuangan'])) {
+            $settings = $this->settingsModel->getSettingsAsArray('GLOBAL');
+        }
+        return $settings['lock_date_keuangan'] ?? '2000-01-01'; // Default: Tidak ada yang dilock
+    }
+
+    /**
      * Menampilkan Riwayat Pembayaran (Index)
-     * Fitur: Scope Unit, Filter Tanggal, Pagination, Dropdown Unit
      */
     public function index()
     {
@@ -81,8 +97,7 @@ class PembayaranController extends BaseController
         $tanggal_mulai   = $this->request->getGet('tanggal_mulai');
         $tanggal_selesai = $this->request->getGet('tanggal_selesai');
 
-        // 3. Siapkan Query Manual (Agar lebih fleksibel join-nya)
-        // Kita gunakan $this->pembayaranModel sebagai base agar method paginate() berfungsi
+        // 3. Siapkan Query Manual
         $builder = $this->pembayaranModel;
         
         $builder->select('pembayaran.*, siswa.nama_lengkap, siswa.nis, jenis_pembayaran.nama_pembayaran, tagihan.deskripsi as deskripsi_tagihan, pegawai.nama_lengkap as nama_admin')
@@ -115,8 +130,10 @@ class PembayaranController extends BaseController
         // Hitung nomor urut
         $nomorUrut = ($page - 1) * $perPage;
 
-        // 5. Data Pendukung (Dropdown Unit)
+        // 5. Data Pendukung (Dropdown Unit & Status Lock)
         $jenjangList = $this->jenjangModel->getDropdownOptions();
+        $targetConfigUnit = $isSuperAdmin ? 'GLOBAL' : $session->get('kode_jenjang');
+        $lockDate = $this->getLockDate($targetConfigUnit);
 
         $data = [
             'title'           => 'Riwayat Transaksi Pembayaran',
@@ -131,6 +148,7 @@ class PembayaranController extends BaseController
             'filter_jenjang'  => $jenjangFilter,
             'isSuperAdmin'    => $isSuperAdmin,
             'jenjang_list'    => $jenjangList,
+            'lock_date'       => $lockDate,
             'navigation'      => $this->getNavigation()
         ];
 
@@ -145,7 +163,7 @@ class PembayaranController extends BaseController
         if (!$id_tagihan) return redirect()->back();
 
         $isSuperAdmin = $this->checkSuperAdmin();
-        $kodeJenjang  = session('kode_jenjang'); // Unit user login
+        $kodeJenjang  = session('kode_jenjang');
 
         // 1. Query Tagihan dengan Validasi Unit
         $query = $this->tagihanModel
@@ -153,7 +171,6 @@ class PembayaranController extends BaseController
             ->join('siswa', 'siswa.id = tagihan.id_siswa')
             ->join('jenis_pembayaran', 'jenis_pembayaran.id = tagihan.id_jenis_pembayaran');
 
-        // Security Check: Jika bukan superadmin, pastikan tagihan milik unit sendiri
         if (!$isSuperAdmin) {
             $query->where('tagihan.kode_jenjang', $kodeJenjang);
         }
@@ -194,12 +211,13 @@ class PembayaranController extends BaseController
     }
 
     /**
-     * Proses simpan pembayaran dengan Database Transaction.
+     * Proses simpan pembayaran dengan Stealth Accounting
      */
     public function store()
     {
         $isSuperAdmin = $this->checkSuperAdmin();
         $kodeJenjangSession = session('kode_jenjang');
+        $session = session();
 
         $rules = [
             'id_tagihan'        => 'required', 
@@ -215,8 +233,10 @@ class PembayaranController extends BaseController
 
         $id_tagihan  = $this->request->getPost('id_tagihan');
         $jumlahInput = (float) $this->request->getPost('jumlah_bayar');
+        $tanggalBayar= $this->request->getPost('tanggal_bayar') ?? date('Y-m-d');
+        $metode      = $this->request->getPost('metode_pembayaran');
         
-        $idAdmin = session()->get('id') ?? session()->get('user_id');
+        $idAdmin = $session->get('id') ?? $session->get('user_id');
         
         $db = \Config\Database::connect();
         $db->transBegin();
@@ -226,11 +246,21 @@ class PembayaranController extends BaseController
         try {
             // 1. Validasi Tagihan & Scope Unit (Double Check)
             $tagihan = $this->tagihanModel->find($id_tagihan);
-            
             if (!$tagihan) throw new \Exception('Tagihan tidak ditemukan.');
 
             if (!$isSuperAdmin && !empty($kodeJenjangSession) && $tagihan['kode_jenjang'] !== $kodeJenjangSession) {
                 throw new \Exception('Akses ditolak: Tagihan ini milik unit lain.');
+            }
+
+            // =========================================================================
+            // AUDIT TRAIL: VALIDASI TUTUP BUKU
+            // =========================================================================
+            $siswa = $this->siswaModel->find($tagihan['id_siswa']);
+            $kodeJenjangSiswa = $siswa['kode_jenjang'] ?? 'GLOBAL';
+
+            $lockDate = $this->getLockDate($isSuperAdmin ? 'GLOBAL' : $kodeJenjangSiswa);
+            if (strtotime($tanggalBayar) <= strtotime($lockDate)) {
+                throw new \Exception('TIDAK DIIZINKAN: Tanggal pembayaran berada dalam periode Tutup Buku (Locked).');
             }
 
             // 2. Hitung Sisa & Validasi Overpayment
@@ -241,7 +271,7 @@ class PembayaranController extends BaseController
             $sudahBayar   = (float)($res['total'] ?? 0);
             $sisaHarusnya = (float)$tagihan['jumlah'] - $sudahBayar;
 
-            if ($jumlahInput > ($sisaHarusnya + 100)) { // Toleransi 100 perak
+            if ($jumlahInput > ($sisaHarusnya + 100)) { // Toleransi 100 perak pembulatan
                  throw new \Exception('Jumlah bayar melebihi sisa tagihan. Sisa: Rp ' . number_format($sisaHarusnya, 0, ',', '.'));
             }
 
@@ -256,37 +286,142 @@ class PembayaranController extends BaseController
             }
 
             // 4. Insert Pembayaran
+            $noKwitansi = 'KWT-' . date('Ym') . '-' . strtoupper(random_string('alnum', 5));
             $this->pembayaranModel->insert([
                 'kode_jenjang'      => $tagihan['kode_jenjang'],
                 'id_tagihan'        => $id_tagihan,
+                'no_kwitansi'       => $noKwitansi,
                 'id_user_admin'     => $idAdmin,
                 'jumlah_bayar'      => $jumlahInput,
-                'tanggal_bayar'     => $this->request->getPost('tanggal_bayar'),
-                'metode_pembayaran' => $this->request->getPost('metode_pembayaran'),
+                'tanggal_bayar'     => $tanggalBayar,
+                'metode_pembayaran' => $metode,
                 'keterangan'        => $this->request->getPost('keterangan'),
                 'bukti_bayar'       => $namaFileBukti
             ]);
+            $idPembayaran = $this->pembayaranModel->getInsertID();
 
             // 5. Update Status Tagihan
             $totalSekarang = $sudahBayar + $jumlahInput;
-            $statusBaru    = ($totalSekarang >= ((float)$tagihan['jumlah'] - 100)) ? 'lunas' : 'sebagian'; // 'sebagian' = mencicil
+            $statusBaru    = ($totalSekarang >= ((float)$tagihan['jumlah'] - 100)) ? 'lunas' : 'sebagian';
             
             $this->tagihanModel->update($id_tagihan, [
+                'terbayar'   => $totalSekarang,
                 'status'     => $statusBaru,
                 'updated_at' => date('Y-m-d H:i:s')
             ]);
 
+            // =========================================================================
+            // 6. STEALTH ACCOUNTING: JURNAL PENERIMAAN KAS
+            // =========================================================================
+            $jurnalModel = new AkuntansiJurnalModel();
+            $jurnalDetailModel = new AkuntansiJurnalDetailModel();
+            $coaModel = new AkuntansiCoaModel();
+
+            // C1. Cari Akun Kas Yayasan/Unit (Debit)
+            $coaKas = $coaModel->where('kode_jenjang', 'GLOBAL')->where('kode_akun', '1101')->first();
+            if (!$coaKas) $coaKas = $coaModel->where('kode_jenjang', 'GLOBAL')->like('nama_akun', 'Kas')->where('is_parent', 0)->first();
+            if (!$coaKas) throw new \Exception("Akun Kas Utama tidak ditemukan di Master COA Yayasan.");
+
+            // C2. Cari Akun Pendapatan SPP (Kredit)
+            $coaPendapatan = $coaModel->where('kode_jenjang', 'GLOBAL')->like('nama_akun', 'Pendapatan Jasa')->where('is_parent', 0)->first();
+            if (!$coaPendapatan) $coaPendapatan = $coaModel->where('kode_jenjang', 'GLOBAL')->like('kode_akun', '41', 'after')->where('is_parent', 0)->first();
+            if (!$coaPendapatan) throw new \Exception("Akun Pendapatan tidak ditemukan di Master COA Yayasan.");
+
+            // Insert Header Jurnal
+            $headerData = [
+                'kode_jenjang'     => $kodeJenjangSiswa, 
+                'nomor_jurnal'     => 'IN-' . date('Ym', strtotime($tanggalBayar)) . '-' . strtoupper(random_string('alnum', 4)),
+                'tanggal'          => $tanggalBayar,
+                'referensi'        => $noKwitansi,
+                'deskripsi'        => 'Penerimaan Tagihan ID-'.$id_tagihan.' a.n ' . ($siswa['nama_lengkap'] ?? 'Siswa'),
+                'total_debit'      => $jumlahInput,
+                'total_kredit'     => $jumlahInput,
+                'sumber_transaksi' => 'Kas Masuk',
+                'status'           => 'Posted',
+                'created_by'       => $idAdmin,
+            ];
+            $jurnalModel->insert($headerData);
+            $idJurnal = $jurnalModel->getInsertID();
+
+            // Insert Double-Entry Details
+            $barisJurnal = [
+                // DEBIT: Kas Bertambah
+                ['id_jurnal' => $idJurnal, 'id_coa' => $coaKas['id'], 'debit' => $jumlahInput, 'kredit' => 0, 'keterangan' => 'Penerimaan Kas via ' . $metode],
+                // KREDIT: Pendapatan Bertambah
+                ['id_jurnal' => $idJurnal, 'id_coa' => $coaPendapatan['id'], 'debit' => 0, 'kredit' => $jumlahInput, 'keterangan' => $headerData['deskripsi']],
+            ];
+            $jurnalDetailModel->insertBatch($barisJurnal);
+
             $db->transCommit();
             return redirect()->to(base_url('app/keuangan/tagihan'))
-                             ->with('success', 'Pembayaran berhasil disimpan. Status: ' . strtoupper($statusBaru));
+                             ->with('success', 'Pembayaran berhasil disimpan dan dijurnal otomatis. Status: ' . strtoupper($statusBaru));
 
         } catch (\Exception $e) {
             $db->transRollback();
-            // Hapus file jika gagal
+            // Hapus file jika gagal database
             if ($namaFileBukti && file_exists(FCPATH . 'uploads/pembayaran/' . $namaFileBukti)) {
                 unlink(FCPATH . 'uploads/pembayaran/' . $namaFileBukti);
             }
             return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Batal Pembayaran & Auto Reversal Jurnal (Delete)
+     */
+    public function delete($id = null)
+    {
+        if (!$id) return redirect()->back();
+
+        $isSuperAdmin = $this->checkSuperAdmin();
+        $sessionJenjang = session('kode_jenjang');
+
+        $pembayaran = $this->pembayaranModel->find($id);
+        if (!$pembayaran) return redirect()->back()->with('error', 'Data pembayaran tidak ditemukan.');
+
+        $tagihan = $this->tagihanModel->find($pembayaran['id_tagihan']);
+        $siswa = $this->siswaModel->find($tagihan['id_siswa'] ?? 0);
+        $kodeJenjangSiswa = $siswa['kode_jenjang'] ?? 'GLOBAL';
+
+        if (!$isSuperAdmin && $kodeJenjangSiswa !== $sessionJenjang) {
+            return redirect()->back()->with('error', 'Akses ditolak.');
+        }
+
+        // =========================================================================
+        // AUDIT TRAIL: VALIDASI TUTUP BUKU PADA SAAT HAPUS
+        // =========================================================================
+        $lockDate = $this->getLockDate($isSuperAdmin ? 'GLOBAL' : $kodeJenjangSiswa);
+        if (strtotime($pembayaran['tanggal_bayar']) <= strtotime($lockDate)) {
+            return redirect()->back()->with('error', 'AUDIT LOCK: Tidak dapat membatalkan penerimaan di bulan yang sudah ditutup bukunya. Hubungi Akuntan Yayasan untuk Jurnal Pembalik.');
+        }
+
+        $this->db->transBegin();
+        try {
+            // A. KEMBALIKAN STATUS TAGIHAN (Revert Sisa Tagihan)
+            $terbayarRevert = max(0, $tagihan['terbayar'] - $pembayaran['jumlah_bayar']);
+            $statusRevert = ($terbayarRevert <= 0) ? 'Belum Bayar' : 'Sebagian';
+            
+            $this->tagihanModel->update($tagihan['id'], [
+                'terbayar' => $terbayarRevert,
+                'status'   => $statusRevert
+            ]);
+
+            // B. HAPUS PEMBAYARAN (Hapus fisik bukti opsional jika ada)
+            if ($pembayaran['bukti_bayar'] && file_exists(FCPATH . 'uploads/pembayaran/' . $pembayaran['bukti_bayar'])) {
+                unlink(FCPATH . 'uploads/pembayaran/' . $pembayaran['bukti_bayar']);
+            }
+            $this->pembayaranModel->delete($id);
+
+            // C. AUTO-REVERSAL JURNAL AKUNTANSI
+            // Hapus berdasarkan nomor kwitansi yang tersimpan di kolom referensi jurnal
+            $jurnalModel = new AkuntansiJurnalModel();
+            $jurnalModel->where('referensi', $pembayaran['no_kwitansi'])->delete();
+
+            $this->db->transCommit();
+            return redirect()->to(base_url('app/keuangan/tagihan'))->with('success', 'Pembayaran dibatalkan. Tagihan direvisi, dan Jurnal Akuntansi otomatis ditarik (Auto-Reversal).');
+        } catch (\Throwable $e) {
+            $this->db->transRollback();
+            return redirect()->back()->with('error', 'Gagal membatalkan transaksi pada sistem Akuntansi.');
         }
     }
 
@@ -305,7 +440,7 @@ class PembayaranController extends BaseController
                       jenis_pembayaran.nama_pembayaran')
             ->join('tagihan', 'tagihan.id = pembayaran.id_tagihan')
             ->join('siswa', 'siswa.id = tagihan.id_siswa')
-            ->join('siswa_enrollment', 'siswa.id = siswa_enrollment.id_siswa', 'left') 
+            ->join('siswa_enrollment', 'siswa.id = siswa_enrollment.id_siswa AND siswa_enrollment.status_akademik = "Aktif"', 'left') 
             ->join('kelas', 'kelas.id = siswa_enrollment.id_kelas', 'left')
             ->join('jenis_pembayaran', 'jenis_pembayaran.id = tagihan.id_jenis_pembayaran')
             ->find($id);
@@ -332,9 +467,9 @@ class PembayaranController extends BaseController
         }
 
         $identitas = [
-            'nama'   => $settings['nama_sekolah'] ?? 'YAYASAN PENDIDIKAN GENERASI JUARA',
-            'alamat' => $settings['alamat_sekolah'] ?? 'Jl. Pendidikan No. 123, Kota Harapan Indah',
-            'kontak' => 'Telp: ' . ($settings['telepon_sekolah'] ?? '-')
+            'nama'   => $settings['nama_sekolah'] ?? $settings['nama_yayasan'] ?? 'YAYASAN PENDIDIKAN GENERASI JUARA',
+            'alamat' => $settings['alamat_sekolah'] ?? $settings['alamat'] ?? 'Jl. Pendidikan No. 123, Kota Harapan Indah',
+            'kontak' => 'Telp: ' . ($settings['telepon_sekolah'] ?? $settings['telepon'] ?? '-')
         ];
 
         // 3. Terbilang
@@ -381,9 +516,10 @@ class PembayaranController extends BaseController
             'dashboard'   => ['label' => 'Dashboard', 'icon' => 'home', 'url' => 'app/keuangan/dashboard'],
             'budget'      => ['label' => 'Anggaran (Budget)', 'icon' => 'pie-chart', 'url' => 'app/keuangan/budget'],
             'tagihan'     => ['label' => 'Tagihan & Piutang', 'icon' => 'file-text', 'url' => 'app/keuangan/tagihan'],
-            'pemasukan'  => ['label' => 'Pemasukan', 'icon' => 'arrow-down-circle', 'url' => 'app/keuangan/laporan/pemasukan'],
+            'pemasukan'   => ['label' => 'Pemasukan', 'icon' => 'arrow-down-circle', 'url' => 'app/keuangan/laporan/pemasukan'],
             'pengeluaran' => ['label' => 'Pengeluaran', 'icon' => 'arrow-up-circle', 'url' => 'app/keuangan/laporan/pengeluaran'],
-            'Akuntansi'     => ['label' => 'Akuntansi', 'icon' => 'printer', 'url' => 'app/keuangan/akuntansi'],
+            // Jika Anda ingin menyembunyikan Akuntansi di sini, Anda bisa menghapusnya atau membiarkannya sesuai selera.
+            'Akuntansi'   => ['label' => 'Akuntansi', 'icon' => 'printer', 'url' => 'app/keuangan/akuntansi'],
         ];
     }
 }

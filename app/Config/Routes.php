@@ -742,8 +742,43 @@ $routes->group('app', ['filter' => 'auth', 'namespace' => 'App\Controllers'], st
             $routes->get('dashboard_cetak', 'CetakController::dashboard');
             // $routes->get('cetak', 'CetakController::index'); // Opsional jika masih dipakai
         });
+
+        // --- BUKU KAS OPERASIONAL (STEALTH ACCOUNTING) ---
+        $routes->get('kas-operasional', 'KasOperasionalController::index');
+        $routes->post('kas-operasional/store', 'KasOperasionalController::store');
+        $routes->get('kas-operasional/delete/(:num)', 'KasOperasionalController::delete/$1');
     });
  
+    // --- AKUNTANSI YAYASAN PRO (ENTERPRISE) ---
+    $routes->group('akuntansi', ['namespace' => 'App\Controllers\Akuntansi'], static function ($routes) {
+        $routes->get('/', 'AkuntansiController::index');
+        $routes->get('dashboard', 'AkuntansiController::index');
+        
+        // --- MANAJEMEN BAGAN AKUN (COA) ---
+        $routes->get('coa/new', 'AkuntansiController::new');
+        $routes->post('coa/save', 'AkuntansiController::save');
+        $routes->get('coa/edit/(:num)', 'AkuntansiController::edit/$1');
+        $routes->get('coa/delete/(:num)', 'AkuntansiController::delete/$1');
+
+        // Jurnal Umum
+        $routes->get('jurnal', 'JurnalController::index');
+        $routes->get('jurnal/new', 'JurnalController::new');
+        $routes->post('jurnal/save', 'JurnalController::save');
+        $routes->get('jurnal/delete/(:num)', 'JurnalController::delete/$1');
+        $routes->get('jurnal/detail/(:num)', 'JurnalController::detail/$1'); // Untuk modal view (opsional)
+
+        // Buku Besar (General Ledger)
+        $routes->get('buku-besar', 'BukuBesarController::index');
+        
+        // Laporan Keuangan (ISAK 35)
+        $routes->get('laporan/neraca-saldo', 'LaporanAkuntansiController::neracaSaldo'); // <--- TAMBAHKAN INI
+        $routes->get('laporan/posisi-keuangan', 'LaporanAkuntansiController::posisiKeuangan');
+        $routes->get('laporan/aktivitas', 'LaporanAkuntansiController::aktivitas');
+        $routes->get('laporan/perubahan-aset-neto', 'LaporanAkuntansiController::perubahanAsetNeto');
+        $routes->get('laporan/arus-kas', 'LaporanAkuntansiController::arusKas');
+        $routes->get('laporan/calk', 'LaporanAkuntansiController::calk');
+    });
+
     // --- KESISWAAN ---
     $routes->group('kesiswaan', ['namespace' => 'App\Controllers\Kesiswaan'], static function ($routes) {
         $routes->get('/', 'DashboardKesiswaanController::index');

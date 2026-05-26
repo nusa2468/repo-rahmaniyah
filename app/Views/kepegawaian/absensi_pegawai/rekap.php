@@ -26,7 +26,7 @@
         <div>
             <nav class="flex mb-3">
                 <ol class="inline-flex items-center space-x-1 md:space-x-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 italic">
-                    <li><a href="<?= base_url('app/kepegawaian/dashboard') ?>" class="hover:text-indigo-600 transition-colors">KEPEGAWAIAN</a></li>
+                    <li><a href="<?= base_url('app/kepegawaian') ?>" class="hover:text-indigo-600 transition-colors">KEPEGAWAIAN</a></li>
                     <li><i class="fas fa-chevron-right text-[7px] opacity-50 mx-2"></i></li>
                     <li class="text-slate-600 italic">REKAPITULASI PRESENSI</li>
                 </ol>
@@ -37,7 +37,7 @@
         </div>
 
         <div class="flex items-center gap-3">
-            <button onclick="window.print()" class="inline-flex items-center px-6 py-3 bg-white border-2 border-slate-200 text-slate-700 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:border-indigo-600 hover:text-indigo-600 transition-all shadow-sm active:scale-95">
+            <button onclick="window.print()" class="inline-flex items-center px-6 py-3 bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-[10px] font-black uppercase tracking-widest rounded-2xl hover:border-indigo-600 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-all shadow-sm active:scale-95">
                 <i class="fas fa-print mr-2"></i> Cetak Laporan
             </button>
         </div>
@@ -45,10 +45,10 @@
 
     <!-- TAB NAVIGASI (HIDDEN ON PRINT) -->
     <div class="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-2xl w-fit mb-8 border border-slate-200 dark:border-white/5 shadow-inner no-print">
-        <a href="<?= base_url('app/kepegawaian/absensi-pegawai') ?>" class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-slate-500 hover:text-indigo-600">
+        <a href="<?= base_url('app/kepegawaian/absensi-pegawai') ?>" class="px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-slate-500 hover:text-indigo-600 hover:bg-white/50 dark:hover:bg-slate-800/50">
             Monitoring Harian
         </a>
-        <a href="<?= base_url('app/kepegawaian/absensi-pegawai/rekap') ?>" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-white text-indigo-600 shadow-md">
+        <a href="<?= base_url('app/kepegawaian/absensi-pegawai/rekap') ?>" class="px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md">
             Rekap Bulanan
         </a>
     </div>
@@ -58,23 +58,26 @@
         <form action="" method="get" class="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6 items-end">
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Kategori SDM</label>
-                <select name="tipe" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black uppercase focus:border-indigo-500 outline-none">
+                <select name="tipe" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black uppercase focus:border-indigo-500 dark:focus:border-indigo-500 outline-none text-slate-700 dark:text-slate-200">
                     <option value="guru" <?= $currentTipe == 'guru' ? 'selected' : '' ?>>GURU / PENDIDIK</option>
                     <option value="staff" <?= $currentTipe == 'staff' ? 'selected' : '' ?>>STAFF / TENDIK</option>
+                    <option value="penunjang" <?= $currentTipe == 'penunjang' ? 'selected' : '' ?>>PENUNJANG (SATPAM/CS)</option>
                 </select>
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Unit Kerja</label>
-                <select name="unit" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black uppercase focus:border-indigo-500 outline-none" <?= !$is_global ? 'disabled' : '' ?>>
-                    <option value="GLOBAL">SEMUA UNIT</option>
+                <select name="unit" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black uppercase focus:border-indigo-500 outline-none text-slate-700 dark:text-slate-200" <?= !$is_global ? 'disabled' : '' ?>>
+                    <option value="" <?= ($current_unit === '' || $current_unit === null) ? 'selected' : '' ?>>🌐 SEMUA UNIT</option>
+                    <option value="GLOBAL" <?= $current_unit === 'GLOBAL' ? 'selected' : '' ?>>🏢 KANTOR YAYASAN</option>
                     <?php foreach($jenjang_list as $j): ?>
-                        <option value="<?= $j['kode_jenjang'] ?>" <?= $current_unit == $j['kode_jenjang'] ? 'selected' : '' ?>>UNIT <?= $j['kode_jenjang'] ?></option>
+                        <?php if(in_array(strtoupper($j['kode_jenjang']), ['GLOBAL','YAYASAN'])) continue; ?>
+                        <option value="<?= $j['kode_jenjang'] ?>" <?= $current_unit == $j['kode_jenjang'] ? 'selected' : '' ?>>🏫 UNIT <?= $j['kode_jenjang'] ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Periode Bulan</label>
-                <select name="bulan" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black focus:border-indigo-500 outline-none">
+                <select name="bulan" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black focus:border-indigo-500 outline-none text-slate-700 dark:text-slate-200">
                     <?php foreach($namaBulan as $m => $n): ?>
                         <option value="<?= $m ?>" <?= $bulan == $m ? 'selected' : '' ?>><?= strtoupper($n) ?></option>
                     <?php endforeach; ?>
@@ -82,13 +85,13 @@
             </div>
             <div class="space-y-2">
                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tahun</label>
-                <select name="tahun" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black focus:border-indigo-500 outline-none">
+                <select name="tahun" class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-2xl text-xs font-black focus:border-indigo-500 outline-none text-slate-700 dark:text-slate-200">
                     <?php for($i=date('Y'); $i>=2023; $i--): ?>
                         <option value="<?= $i ?>" <?= $tahun == $i ? 'selected' : '' ?>><?= $i ?></option>
                     <?php endfor; ?>
                 </select>
             </div>
-            <button type="submit" class="bg-indigo-600 text-white font-black py-4 px-6 rounded-2xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95 border-b-4 border-indigo-800 text-[10px] uppercase tracking-widest">
+            <button type="submit" class="bg-indigo-600 text-white font-black py-4 px-6 rounded-2xl shadow-lg shadow-indigo-100 dark:shadow-none hover:bg-indigo-700 transition-all active:scale-95 border-b-4 border-indigo-800 text-[10px] uppercase tracking-widest">
                 Tampilkan Rekap
             </button>
         </form>
@@ -118,8 +121,13 @@
                     <span><?= $namaBulan[$bulan] ?? $bulan ?> <?= $tahun ?></span>
                 </div>
                 <div class="text-right">
+                    <?php 
+                        $labelUnitCetak = 'SEMUA UNIT TERPADU';
+                        if ($current_unit === 'GLOBAL') $labelUnitCetak = 'KANTOR YAYASAN (PUSAT)';
+                        elseif (!empty($current_unit)) $labelUnitCetak = 'UNIT ' . $current_unit;
+                    ?>
                     <span class="block text-gray-500 text-[10px]">Unit Kerja / Scope:</span>
-                    <span><?= esc($current_unit) ?></span>
+                    <span><?= esc($labelUnitCetak) ?></span>
                 </div>
             </div>
         </div>
@@ -128,7 +136,12 @@
             <h3 class="text-xs font-black uppercase tracking-widest leading-none">
                 Laporan Presensi: <?= $namaBulan[$bulan] ?? $bulan ?> <?= $tahun ?>
             </h3>
-            <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Unit Otoritas: <?= esc($current_unit) ?></span>
+            <?php 
+                $labelUnitUI = 'Semua Unit Tergabung';
+                if ($current_unit === 'GLOBAL') $labelUnitUI = 'Kantor Yayasan (Pusat)';
+                elseif (!empty($current_unit)) $labelUnitUI = 'Unit ' . $current_unit;
+            ?>
+            <span class="text-[9px] font-bold opacity-50 uppercase tracking-widest">Filter: <?= esc($labelUnitUI) ?></span>
         </div>
 
         <div class="overflow-x-auto custom-scrollbar">
@@ -136,7 +149,7 @@
                 <thead>
                     <tr class="bg-slate-50 dark:bg-white/5 border-b-2 border-slate-100 dark:border-white/10 print:bg-gray-100">
                         <th class="px-8 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest w-16 text-center print:text-black">No</th>
-                        <th class="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest print:text-black">Nama Pegawai</th>
+                        <th class="px-6 py-5 text-[10px] font-black uppercase text-slate-400 tracking-widest print:text-black">Nama Pegawai & Unit</th>
                         <th class="px-4 py-5 text-[10px] font-black uppercase text-emerald-600 tracking-widest text-center print:text-black">Hadir</th>
                         <th class="px-4 py-5 text-[10px] font-black uppercase text-amber-500 tracking-widest text-center print:text-black">Late</th>
                         <th class="px-4 py-5 text-[10px] font-black uppercase text-indigo-500 tracking-widest text-center print:text-black">Sakit</th>
@@ -152,28 +165,28 @@
                         <tr>
                             <td colspan="10" class="px-8 py-24 text-center">
                                 <div class="flex flex-col items-center opacity-30 no-print">
-                                    <i class="fas fa-calendar-times text-6xl mb-4"></i>
-                                    <p class="text-sm font-black uppercase tracking-widest">Laporan Masih Kosong</p>
-                                    <p class="text-[10px] font-bold mt-1 uppercase italic">Belum ada pegawai yang aktif atau tercatat pada periode ini.</p>
+                                    <i class="fas fa-calendar-times text-6xl mb-4 text-slate-500 dark:text-slate-400"></i>
+                                    <p class="text-sm font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">Laporan Masih Kosong</p>
+                                    <p class="text-[10px] font-bold mt-1 uppercase italic text-slate-500">Belum ada data pegawai yang sesuai dengan filter.</p>
                                 </div>
                                 <div class="hidden print:block text-center italic font-bold">Data Presensi Kosong</div>
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php $no = 1; foreach ($listRekap as $row): ?>
-                            <tr class="hover:bg-indigo-50/30 transition-all group print:no-hover">
-                                <td class="px-8 py-4 text-center font-black text-slate-300 print:text-black print:border-b print:border-gray-300"><?= $no++ ?></td>
+                            <tr class="hover:bg-indigo-50/30 dark:hover:bg-slate-800/50 transition-all group print:no-hover">
+                                <td class="px-8 py-4 text-center font-black text-slate-400 dark:text-slate-500 print:text-black print:border-b print:border-gray-300"><?= $no++ ?></td>
                                 <td class="px-6 py-4 print:border-b print:border-gray-300">
                                     <p class="font-black text-slate-800 dark:text-slate-100 uppercase italic leading-none group-hover:text-indigo-600 transition-colors print:text-black"><?= esc($row->nama_lengkap) ?></p>
-                                    <p class="text-[9px] font-bold text-slate-400 uppercase mt-1 print:text-gray-600">NIP: <?= esc($row->nip ?? '-') ?> • Unit: <?= esc($row->kode_jenjang) ?></p>
+                                    <p class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1 print:text-gray-600">NIP: <?= esc($row->nip ?? '-') ?> • Unit: <?= in_array(strtoupper($row->kode_jenjang), ['GLOBAL','YAYASAN']) ? 'YAYASAN' : esc($row->kode_jenjang) ?></p>
                                 </td>
-                                <td class="px-4 py-4 text-center font-black text-emerald-600 bg-emerald-50/20 print:bg-transparent print:text-black print:border-b print:border-gray-300"><?= $row->jml_hadir ?></td>
-                                <td class="px-4 py-4 text-center font-black text-amber-500 print:text-black print:border-b print:border-gray-300"><?= $row->jml_terlambat ?></td>
-                                <td class="px-4 py-4 text-center font-black text-indigo-500 print:text-black print:border-b print:border-gray-300"><?= $row->jml_sakit ?></td>
-                                <td class="px-4 py-4 text-center font-black text-orange-500 print:text-black print:border-b print:border-gray-300"><?= $row->jml_izin ?></td>
-                                <td class="px-4 py-4 text-center font-black text-rose-500 <?= $row->jml_alpa > 0 ? 'bg-rose-50' : '' ?> print:bg-transparent print:text-black print:border-b print:border-gray-300"><?= $row->jml_alpa ?></td>
-                                <td class="px-4 py-4 text-center font-black text-sky-500 print:text-black print:border-b print:border-gray-300"><?= $row->jml_cuti ?></td>
-                                <td class="px-4 py-4 text-center font-black text-indigo-700 print:text-black print:border-b print:border-gray-300"><?= $row->jml_dinas ?></td>
+                                <td class="px-4 py-4 text-center font-black text-emerald-600 dark:text-emerald-500 bg-emerald-50/20 dark:bg-emerald-900/10 print:bg-transparent print:text-black print:border-b print:border-gray-300"><?= $row->jml_hadir ?></td>
+                                <td class="px-4 py-4 text-center font-black text-amber-500 dark:text-amber-400 print:text-black print:border-b print:border-gray-300"><?= $row->jml_terlambat ?></td>
+                                <td class="px-4 py-4 text-center font-black text-indigo-500 dark:text-indigo-400 print:text-black print:border-b print:border-gray-300"><?= $row->jml_sakit ?></td>
+                                <td class="px-4 py-4 text-center font-black text-orange-500 dark:text-orange-400 print:text-black print:border-b print:border-gray-300"><?= $row->jml_izin ?></td>
+                                <td class="px-4 py-4 text-center font-black text-rose-500 dark:text-rose-400 <?= $row->jml_alpa > 0 ? 'bg-rose-50 dark:bg-rose-900/10' : '' ?> print:bg-transparent print:text-black print:border-b print:border-gray-300"><?= $row->jml_alpa ?></td>
+                                <td class="px-4 py-4 text-center font-black text-sky-500 dark:text-sky-400 print:text-black print:border-b print:border-gray-300"><?= $row->jml_cuti ?></td>
+                                <td class="px-4 py-4 text-center font-black text-indigo-700 dark:text-indigo-300 print:text-black print:border-b print:border-gray-300"><?= $row->jml_dinas ?></td>
                                 <td class="px-8 py-4 text-center font-black text-slate-900 dark:text-white bg-slate-50/50 dark:bg-white/5 italic text-sm no-print-bg print:text-black print:bg-transparent print:border-b print:border-gray-300">
                                     <?= $row->total_log ?>
                                 </td>
@@ -195,7 +208,7 @@
                 </div>
                 <div></div>
                 <div>
-                    <p>Jakarta, <?= date('d F Y') ?><br>Petugas Administrasi</p>
+                    <p>Depok, <?= date('d F Y') ?><br>Petugas Administrasi / HRD</p>
                     <div class="h-20"></div>
                     <p class="underline">( ..................................... )</p>
                 </div>

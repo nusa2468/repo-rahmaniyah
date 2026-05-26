@@ -110,6 +110,14 @@
         <div class="mt-6 overflow-x-auto pb-1 scrollbar-hide max-w-screen-2xl mx-auto">
             <div class="inline-flex p-1 bg-slate-200/60 rounded-xl border border-slate-200/60">
                 <?php foreach($navigation as $key => $nav): 
+                    
+                    // ========================================================
+                    // FIX GANAS: SEMBUNYIKAN TAB AKUNTANSI
+                    // ========================================================
+                    if (stripos($key, 'akuntan') !== false || stripos($nav['label'] ?? '', 'akuntan') !== false) {
+                        continue;
+                    }
+
                     $isActive = ($key === 'pengeluaran' || ($key === 'laporan' && strpos(current_url(), 'pengeluaran') !== false)); 
                     $activeClass = $isActive 
                         ? 'bg-white text-amber-600 shadow-sm ring-1 ring-black/5' 

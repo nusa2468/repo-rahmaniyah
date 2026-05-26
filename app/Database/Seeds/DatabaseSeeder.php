@@ -31,6 +31,9 @@ class DatabaseSeeder extends Seeder
             'aset_pemeliharaan', 'aset_peminjaman', 'aset_pengadaan', 'aset_barang', 'aset_lokasi', 'aset_kategori',
             // ==============================================================================
             
+            // Modul Akuntansi Yayasan PRO
+            'akuntansi_jurnal_detail', 'akuntansi_jurnal', 'akuntansi_coa', 'akuntansi_kategori',
+
             // Modul Keuangan
             'anggaran_unit', 'pengeluaran', 'kategori_anggaran', 'pembayaran', 'tagihan', 'jenis_pembayaran',
             
@@ -111,6 +114,14 @@ class DatabaseSeeder extends Seeder
         
         $this->call('SiswaSeeder'); 
         $this->call('KeuanganSeeder');
+        
+        // ==============================================================================
+        // AKTIFASI SEEDER AKUNTANSI PRO (Multi-Tenant)
+        // Diletakkan setelah JenjangSeeder & Keuangan agar dependensinya terpenuhi
+        // ==============================================================================
+        $this->call('AkuntansiSeeder');
+        // ==============================================================================
+
         $this->call('AcademicDataSeeder');
         $this->call('KesiswaanMasterDataSeeder'); 
         $this->call('PpdbSeeder');

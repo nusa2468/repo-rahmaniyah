@@ -14,15 +14,23 @@ class PembayaranModel extends Model
     protected $primaryKey = 'id';
     protected $returnType = 'array';
     protected $useTimestamps = true;
+    
+    // FITUR BARU: Mengaktifkan Soft Deletes untuk melindungi Audit Trail
+    protected $useSoftDeletes = true;
+    protected $deletedField   = 'deleted_at';
 
+    // PERBAIKAN KRUSIAL: Menambahkan 'kode_jenjang' dan 'no_kwitansi'
     protected $allowedFields = [
+        'kode_jenjang',      // Wajib untuk Filter Multi-Tenant
+        'no_kwitansi',       // Bukti Transaksi Resmi
         'id_tagihan', 
         'id_user_admin', 
         'jumlah_bayar', 
         'tanggal_bayar', 
         'metode_pembayaran', 
         'bukti_bayar', 
-        'keterangan'
+        'keterangan',
+        'deleted_at'
     ];
 
     /**
@@ -46,7 +54,7 @@ class PembayaranModel extends Model
      */
     public function scopeJenjang($kodeJenjang = null)
     {
-        if ($kodeJenjang) {
+        if ($kodeJenjang && strtoupper($kodeJenjang) !== 'GLOBAL') {
             $this->_ensureSiswaTagihanJoined();
             $this->where('siswa.kode_jenjang', $kodeJenjang);
         }
@@ -55,7 +63,6 @@ class PembayaranModel extends Model
 
     /**
      * Query dasar untuk laporan pemasukan dengan join lengkap.
-     * Perbaikan: Parameter dijadikan opsional untuk mendukung pemanggilan dari Dashboard.
      */
     public function getBaseLaporanQuery($startDate = null, $endDate = null)
     {
@@ -77,7 +84,7 @@ class PembayaranModel extends Model
                 kelas.nama_kelas,
                 IFNULL(users.nama_lengkap, "Sistem") as nama_admin
             ')
-            // Join ke Enrollment & Kelas (Selalu Left Join untuk menghindari data hilang jika siswa belum di-enroll)
+            // Join ke Enrollment & Kelas (Left Join untuk menghindari data hilang jika siswa belum di-enroll)
             ->join('siswa_enrollment', "siswa_enrollment.id_siswa = siswa.id AND siswa_enrollment.id_tahun_ajaran = " . $db->escape($idTahunAktif), 'left')
             ->join('kelas', 'kelas.id = siswa_enrollment.id_kelas', 'left')
             ->join('users', 'users.id = pembayaran.id_user_admin', 'left');
@@ -102,7 +109,7 @@ class PembayaranModel extends Model
     {
         $this->scopeJenjang($kodeJenjang);
         
-        return (float) $this->selectSum('jumlah_bayar', 'total')
+        return (float) $this->selectSum('pembayaran.jumlah_bayar', 'total')
             ->where('pembayaran.tanggal_bayar >=', $startDate . ' 00:00:00')
             ->where('pembayaran.tanggal_bayar <=', $endDate . ' 23:59:59')
             ->get()->getRow()->total ?? 0;
@@ -110,7 +117,6 @@ class PembayaranModel extends Model
 
     /**
      * DASHBOARD HOME: Menghitung total realisasi pembayaran bulan ini.
-     * Menyelesaikan error BadMethodCallException di Home Controller.
      */
     public function getTotalRealisasiSppBulanIni()
     {

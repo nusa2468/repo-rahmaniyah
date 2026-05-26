@@ -1,6 +1,42 @@
 <?= $this->extend('layout/main_layout') ?>
 
 <?= $this->section('content') ?>
+
+<?php
+    // =========================================================================
+    // 1. PENGAMAN VARIABEL (Mencegah Error Undefined Variable dari Controller)
+    // =========================================================================
+    $jenjang = $jenjang ?? $filter_jenjang ?? $kode_jenjang ?? $current_unit ?? '';
+    $is_superadmin = $is_superadmin ?? $isSuperAdmin ?? false;
+    $jenjang_list = $jenjang_list ?? [];
+    
+    // =========================================================================
+    // FIX: OVERRIDE NAVIGASI (Memastikan Tab Buku Kas & Laporan Selalu Muncul)
+    // =========================================================================
+    $navigation = [
+        'dashboard'       => ['label' => 'Dashboard', 'icon' => 'home', 'url' => 'app/keuangan/dashboard'],
+        'budget'          => ['label' => 'Anggaran (Budget)', 'icon' => 'chart-pie', 'url' => 'app/keuangan/budget'],
+        'tagihan'         => ['label' => 'Tagihan & Piutang', 'icon' => 'file-invoice-dollar', 'url' => 'app/keuangan/tagihan'],
+        'pembayaran'      => ['label' => 'Pemasukan SPP', 'icon' => 'arrow-down-circle', 'url' => 'app/keuangan/pembayaran'],
+        'kas-operasional' => ['label' => 'Buku Kas (In/Out)', 'icon' => 'exchange-alt', 'url' => 'app/keuangan/kas-operasional'],
+        'laporan'         => ['label' => 'Laporan Ops', 'icon' => 'print', 'url' => 'app/keuangan/laporan/pemasukan'],
+    ];
+    
+    // Pastikan array stats memiliki nilai default jika Controller gagal mengirim data
+    $stats = $stats ?? [
+        'tahun_aktif' => date('Y'),
+        'budget_rencana' => 0,
+        'persen_budget' => 0,
+        'surplus_defisit' => 0,
+        'total_pemasukan' => 0,
+        'total_piutang' => 0
+    ];
+    
+    $recent_transactions = $recent_transactions ?? [];
+    $chart_cashflow = $chart_cashflow ?? ['labels' => [], 'income' => [], 'expense' => []];
+    $chart_distribution = $chart_distribution ?? [];
+?>
+
 <!-- Memuat Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 
@@ -21,7 +57,7 @@
                         <p class="text-xs font-medium text-slate-500 flex items-center gap-1.5 mt-0.5">
                             Unit Monitoring: 
                             <span class="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-bold text-blue-600 ring-1 ring-inset ring-slate-500/10">
-                                <?= ($jenjang ?? '') ?: 'SEMUA UNIT' ?>
+                                <?= $jenjang ?: 'SEMUA UNIT' ?>
                             </span>
                         </p>
                     </div>
@@ -35,15 +71,15 @@
                 <div class="flex items-center p-1 bg-white border border-slate-200 rounded-xl shadow-sm">
                     
                     <!-- FIX: Hanya Tampilkan Dropdown Jika Superadmin -->
-                    <?php if(isset($is_superadmin) && $is_superadmin): ?>
+                    <?php if($is_superadmin): ?>
                     <form action="" method="get" class="flex items-center m-0 p-0 relative group">
                         <div class="relative">
                             <select name="jenjang" onchange="this.form.submit()" class="h-9 pl-9 pr-8 bg-transparent text-slate-600 text-sm font-semibold cursor-pointer appearance-none outline-none hover:text-blue-600 transition-colors">
                                 <option value="">SEMUA UNIT</option>
                                 <?php if(!empty($jenjang_list)): ?>
                                     <?php foreach($jenjang_list as $j): ?>
-                                        <option value="<?= $j['kode_jenjang'] ?>" <?= $jenjang == $j['kode_jenjang'] ? 'selected' : '' ?>>
-                                            Unit <?= $j['nama_jenjang'] ?>
+                                        <option value="<?= esc($j['kode_jenjang']) ?>" <?= $jenjang == $j['kode_jenjang'] ? 'selected' : '' ?>>
+                                            Unit <?= esc($j['nama_jenjang'] ?? $j['kode_jenjang']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 <?php endif; ?>
@@ -62,7 +98,7 @@
                     <!-- Badge Tahun Ajar -->
                     <div class="flex items-center gap-2 px-3 h-9 text-sm font-medium text-slate-500 select-none">
                         <i class="fas fa-calendar-alt text-blue-500"></i>
-                        <span>TA <?= $stats['tahun_aktif'] ?? date('Y') ?></span>
+                        <span>TA <?= esc($stats['tahun_aktif']) ?></span>
                     </div>
                 </div>
             </div>
@@ -72,9 +108,16 @@
         <div class="mt-6 overflow-x-auto pb-1 scrollbar-hide max-w-screen-2xl mx-auto">
             <div class="inline-flex p-1 bg-slate-200/60 rounded-xl border border-slate-200/60">
                 <?php 
-                    // Menggunakan data navigasi dari Controller (getNavigation)
-                    if(isset($navigation)):
+                    if(!empty($navigation)):
                         foreach($navigation as $key => $nav):
+                            
+                            // ========================================================
+                            // FIX: SEMBUNYIKAN TAB AKUNTANSI SEMENTARA WAKTU (STRATEGI)
+                            // ========================================================
+                            if (strtolower($key) === 'akuntansi' || strtolower($nav['label'] === 'akuntansi')) {
+                                continue;
+                            }
+                            
                             // Highlight dashboard jika di root
                             $isActive = ($key === 'dashboard'); 
                             $baseClass = "px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap flex items-center justify-center gap-2";
@@ -82,8 +125,8 @@
                                 ? 'bg-white text-blue-600 shadow-sm ring-1 ring-black/5' 
                                 : 'text-slate-500 hover:text-slate-700 hover:bg-white/50';
                 ?>
-                <a href="<?= base_url($nav['url']) ?><?= $jenjang ? '?jenjang='.$jenjang : '' ?>" class="<?= $baseClass ?> <?= $activeClass ?>">
-                    <i class="fas fa-<?= $nav['icon'] ?>"></i> <?= $nav['label'] ?>
+                <a href="<?= base_url($nav['url']) ?><?= !empty($jenjang) ? '?jenjang='.urlencode($jenjang) : '' ?>" class="<?= $baseClass ?> <?= $activeClass ?>">
+                    <i class="fas fa-<?= esc($nav['icon']) ?>"></i> <?= esc($nav['label']) ?>
                 </a>
                 <?php 
                         endforeach;
@@ -111,7 +154,7 @@
                     </div>
                     <div class="flex justify-between items-center mt-2 text-[9px] font-black uppercase tracking-widest">
                         <span class="text-indigo-100 opacity-80">Terpakai</span>
-                        <span class="bg-white/20 px-2 py-0.5 rounded"><?= $stats['persen_budget'] ?>%</span>
+                        <span class="bg-white/20 px-2 py-0.5 rounded"><?= esc($stats['persen_budget']) ?>%</span>
                     </div>
                 </div>
             </div>
@@ -181,7 +224,14 @@
                 </div>
                 <div class="p-6">
                     <div class="relative h-64 w-full">
-                        <canvas id="cashflowChart"></canvas>
+                        <?php if(!empty($chart_cashflow['labels'])): ?>
+                            <canvas id="cashflowChart"></canvas>
+                        <?php else: ?>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                                <i class="fas fa-chart-line text-4xl mb-2 opacity-20"></i>
+                                <span class="text-xs font-bold uppercase tracking-widest">Data Kosong</span>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -194,8 +244,15 @@
                     </h6>
                 </div>
                 <div class="p-6">
-                    <div class="relative h-56 w-full mb-4">
-                        <canvas id="distributionChart"></canvas>
+                    <div class="relative h-56 w-full mb-4 flex items-center justify-center">
+                        <?php if(!empty($chart_distribution)): ?>
+                            <canvas id="distributionChart"></canvas>
+                        <?php else: ?>
+                            <div class="text-slate-400">
+                                <i class="fas fa-chart-pie text-4xl mb-2 opacity-20"></i><br>
+                                <span class="text-xs font-bold uppercase tracking-widest">Data Kosong</span>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -242,20 +299,20 @@
                                     <div class="text-[9px] text-gray-400 uppercase"><?= date('H:i', strtotime($trx['tanggal'])) ?> WIB</div>
                                 </td>
                                 <td class="px-6 py-3">
-                                    <div class="text-[10px] font-black <?= $trx['jenis'] == 'masuk' ? 'text-emerald-600' : 'text-red-600' ?> uppercase tracking-tighter mb-0.5">
-                                        <?= $trx['kategori'] ?>
+                                    <div class="text-[10px] font-black <?= ($trx['jenis'] ?? '') == 'masuk' ? 'text-emerald-600' : 'text-red-600' ?> uppercase tracking-tighter mb-0.5">
+                                        <?= esc($trx['kategori'] ?? '') ?>
                                     </div>
-                                    <div class="text-gray-400 text-[10px] truncate max-w-[200px]"><?= $trx['deskripsi'] ?></div>
+                                    <div class="text-gray-400 text-[10px] truncate max-w-[200px]"><?= esc($trx['deskripsi'] ?? '') ?></div>
                                 </td>
                                 <td class="px-6 py-3 font-bold text-gray-700 uppercase">
-                                    <?= $trx['pihak_terkait'] ?: '-' ?>
+                                    <?= esc($trx['pihak_terkait'] ?: '-') ?>
                                 </td>
-                                <td class="px-6 py-3 text-right font-black <?= $trx['jenis'] == 'masuk' ? 'text-emerald-700' : 'text-red-700' ?>" data-value="<?= $trx['jumlah'] ?>">
-                                    <?= $trx['jenis'] == 'masuk' ? '+' : '-' ?> Rp <?= number_format($trx['jumlah'], 0, ',', '.') ?>
+                                <td class="px-6 py-3 text-right font-black <?= ($trx['jenis'] ?? '') == 'masuk' ? 'text-emerald-700' : 'text-red-700' ?>" data-value="<?= $trx['jumlah'] ?? 0 ?>">
+                                    <?= ($trx['jenis'] ?? '') == 'masuk' ? '+' : '-' ?> Rp <?= number_format($trx['jumlah'] ?? 0, 0, ',', '.') ?>
                                 </td>
                                 <td class="px-6 py-3 text-center">
-                                    <span class="px-2 py-1 rounded text-[8px] font-black uppercase border shadow-sm <?= $trx['jenis'] == 'masuk' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100' ?>">
-                                        <?= $trx['jenis'] ?>
+                                    <span class="px-2 py-1 rounded text-[8px] font-black uppercase border shadow-sm <?= ($trx['jenis'] ?? '') == 'masuk' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100' ?>">
+                                        <?= esc($trx['jenis'] ?? '') ?>
                                     </span>
                                 </td>
                             </tr>
@@ -288,11 +345,11 @@
             new Chart(cashCtx, {
                 type: 'line',
                 data: {
-                    labels: <?= json_encode($chart_cashflow['labels']) ?>,
+                    labels: <?= json_encode($chart_cashflow['labels'] ?? []) ?>,
                     datasets: [
                         {
                             label: 'Masuk',
-                            data: <?= json_encode($chart_cashflow['income']) ?>,
+                            data: <?= json_encode($chart_cashflow['income'] ?? []) ?>,
                             borderColor: '#10b981',
                             backgroundColor: 'rgba(16, 185, 129, 0.1)',
                             borderWidth: 3,
@@ -302,7 +359,7 @@
                         },
                         {
                             label: 'Keluar',
-                            data: <?= json_encode($chart_cashflow['expense']) ?>,
+                            data: <?= json_encode($chart_cashflow['expense'] ?? []) ?>,
                             borderColor: '#ef4444',
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
                             borderWidth: 3,
@@ -326,8 +383,8 @@
 
         const distCtx = document.getElementById('distributionChart')?.getContext('2d');
         if (distCtx) {
-            const distLabels = <?= json_encode(array_keys($chart_distribution)) ?>;
-            const distData = <?= json_encode(array_values($chart_distribution)) ?>;
+            const distLabels = <?= json_encode(array_keys($chart_distribution ?? [])) ?>;
+            const distData = <?= json_encode(array_values($chart_distribution ?? [])) ?>;
             const bgColors = ['#9333ea', '#2563eb', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#ec4899'];
             const chartColors = distLabels.map((_, i) => bgColors[i % bgColors.length]);
 

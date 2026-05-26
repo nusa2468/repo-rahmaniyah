@@ -113,6 +113,14 @@
         <div class="mt-6 overflow-x-auto pb-1 scrollbar-hide max-w-screen-2xl mx-auto">
             <div class="inline-flex p-1 bg-slate-200/60 rounded-xl border border-slate-200/60">
                 <?php foreach($navigation as $key => $nav): 
+                    
+                    // ========================================================
+                    // FIX GANAS: SEMBUNYIKAN TAB AKUNTANSI
+                    // ========================================================
+                    if (stripos($key, 'akuntan') !== false || stripos($nav['label'] ?? '', 'akuntan') !== false) {
+                        continue;
+                    }
+
                     // Highlight tab aktif (pemasukan ada di controller LaporanPemasukan)
                     $isActive = ($key === 'pembayaran' || ($key === 'laporan' && strpos(current_url(), 'pemasukan') !== false)); 
                     $activeClass = $isActive 
